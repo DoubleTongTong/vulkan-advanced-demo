@@ -18,12 +18,25 @@ set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 
+# Taskflow 本身是 header-only，这里不需要它自带的 examples/tests 进入 VS 目标列表。
+set(TF_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(TF_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(TF_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
+
 FetchContent_Declare(
     glfw
     GIT_REPOSITORY https://github.com/glfw/glfw.git
     GIT_TAG 3.4
 )
+
+FetchContent_Declare(
+    taskflow
+    GIT_REPOSITORY https://github.com/taskflow/taskflow.git
+    GIT_TAG v3.8.0
+)
+
 FetchContent_MakeAvailable(glfw)
+FetchContent_MakeAvailable(taskflow)
 
 add_executable(vulkan_advanced_demo
     src/main.cpp
@@ -43,4 +56,18 @@ target_compile_options(vulkan_advanced_demo
 target_link_libraries(vulkan_advanced_demo
     PRIVATE
         glfw
+)
+
+add_executable(taskflow_demo
+    demos/taskflow/TaskflowDemo.cpp
+)
+
+target_include_directories(taskflow_demo
+    PRIVATE
+        ${taskflow_SOURCE_DIR}
+)
+
+target_compile_options(taskflow_demo
+    PRIVATE
+        $<$<CXX_COMPILER_ID:MSVC>:/utf-8>
 )
