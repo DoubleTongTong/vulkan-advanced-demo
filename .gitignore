@@ -89,6 +89,8 @@ notes/
 .deps/
 _deps/
 vcpkg_installed/
+externals/*
+!externals/.gitkeep
 
 # OS files
 .DS_Store
