@@ -23,6 +23,20 @@ set(TF_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(TF_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(TF_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
 
+# glslang 只作为库使用，不需要它自带的命令行工具和测试目标。
+set(GLSLANG_TESTS OFF CACHE BOOL "" FORCE)
+set(GLSLANG_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+set(ENABLE_GLSLANG_BINARIES OFF CACHE BOOL "" FORCE)
+set(ENABLE_HLSL OFF CACHE BOOL "" FORCE)
+set(ENABLE_OPT OFF CACHE BOOL "" FORCE)
+
+# SPIRV-Reflect 用来从 SPIR-V 中提取 push constants、descriptor 等反射信息。
+set(SPIRV_REFLECT_EXECUTABLE OFF CACHE BOOL "" FORCE)
+set(SPIRV_REFLECT_STATIC_LIB ON CACHE BOOL "" FORCE)
+set(SPIRV_REFLECT_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(SPIRV_REFLECT_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(SPIRV_REFLECT_INSTALL OFF CACHE BOOL "" FORCE)
+
 FetchContent_Declare(
     glfw
     GIT_REPOSITORY https://github.com/glfw/glfw.git
@@ -35,8 +49,43 @@ FetchContent_Declare(
     GIT_TAG v3.8.0
 )
 
+FetchContent_Declare(
+    glslang
+    GIT_REPOSITORY https://github.com/KhronosGroup/glslang.git
+    GIT_TAG vulkan-sdk-1.4.328.1
+)
+
+FetchContent_Declare(
+    spirv_reflect
+    GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Reflect.git
+    GIT_TAG vulkan-sdk-1.4.328.1
+)
+
 FetchContent_MakeAvailable(glfw)
 FetchContent_MakeAvailable(taskflow)
+FetchContent_MakeAvailable(glslang)
+FetchContent_MakeAvailable(spirv_reflect)
+
+add_library(shader_compiler
+    src/ShaderCompiler.cpp
+)
+
+target_include_directories(shader_compiler
+    PUBLIC
+        include
+)
+
+target_compile_options(shader_compiler
+    PRIVATE
+        $<$<CXX_COMPILER_ID:MSVC>:/utf-8>
+)
+
+target_link_libraries(shader_compiler
+    PRIVATE
+        glslang
+        glslang-default-resource-limits
+        spirv-reflect-static
+)
 
 add_executable(vulkan_advanced_demo
     src/main.cpp
@@ -70,4 +119,23 @@ target_include_directories(taskflow_demo
 target_compile_options(taskflow_demo
     PRIVATE
         $<$<CXX_COMPILER_ID:MSVC>:/utf-8>
+)
+
+add_executable(glslang_demo
+    demos/glslang/GlslangDemo.cpp
+)
+
+target_compile_definitions(glslang_demo
+    PRIVATE
+        DEMO_SHADER_DIR="${CMAKE_SOURCE_DIR}/demos/glslang/shaders"
+)
+
+target_compile_options(glslang_demo
+    PRIVATE
+        $<$<CXX_COMPILER_ID:MSVC>:/utf-8>
+)
+
+target_link_libraries(glslang_demo
+    PRIVATE
+        shader_compiler
 )
