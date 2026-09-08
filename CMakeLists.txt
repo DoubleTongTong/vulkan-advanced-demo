@@ -12,6 +12,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(FetchContent)
 
+find_package(Vulkan REQUIRED)
+
 # 把 FetchContent 拉下来的第三方代码统一放在项目根目录的 externals/。
 # 这样目录结构更直观，也方便你以后快速确认依赖来自哪里。
 set(FETCHCONTENT_BASE_DIR ${CMAKE_SOURCE_DIR}/externals)
@@ -168,6 +170,7 @@ target_link_libraries(texture_compressor
 add_executable(vulkan_advanced_demo
     src/main.cpp
     src/GlfwWindow.cpp
+    src/VulkanContext.cpp
 )
 
 target_include_directories(vulkan_advanced_demo
@@ -183,6 +186,7 @@ target_compile_options(vulkan_advanced_demo
 target_link_libraries(vulkan_advanced_demo
     PRIVATE
         glfw
+        Vulkan::Vulkan
 )
 
 add_executable(taskflow_demo
