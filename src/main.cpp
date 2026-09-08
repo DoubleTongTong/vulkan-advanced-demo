@@ -1,5 +1,6 @@
 #include "GlfwWindow.h"
 #include "VulkanContext.h"
+#include "VulkanSwapchain.h"
 
 #include <exception>
 #include <iostream>
@@ -11,6 +12,9 @@ int main() {
 
         // 先完成 Vulkan 最基础的上下文创建：instance、surface、device 和 graphics queue。
         VulkanContext vulkan(window.handle());
+
+        // Swapchain 管理一组可以呈现到窗口上的图像，后续渲染会围绕它展开。
+        VulkanSwapchain swapchain(vulkan, window.width(), window.height());
 
         window.run();
     } catch (const std::exception& error) {

@@ -1,5 +1,7 @@
 #include "VulkanContext.h"
 
+#include "VulkanUtils.h"
+
 #include <GLFW/glfw3.h>
 
 #include <algorithm>
@@ -7,7 +9,6 @@
 #include <iostream>
 #include <iterator>
 #include <stdexcept>
-#include <string>
 #include <vector>
 
 namespace {
@@ -16,12 +17,6 @@ constexpr const char* ValidationLayer = "VK_LAYER_KHRONOS_validation";
 constexpr const char* RequiredDeviceExtensions[] = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 };
-
-void checkVk(VkResult result, const char* action) {
-    if (result != VK_SUCCESS) {
-        throw std::runtime_error(std::string(action) + " failed with VkResult " + std::to_string(result) + ".");
-    }
-}
 
 std::string deviceTypeName(VkPhysicalDeviceType type) {
     switch (type) {
@@ -121,7 +116,7 @@ void VulkanContext::createInstance() {
         .ppEnabledExtensionNames = extensions.data(),
     };
 
-    checkVk(vkCreateInstance(&createInfo, nullptr, &instance_), "vkCreateInstance");
+    vulkan_utils::checkVk(vkCreateInstance(&createInfo, nullptr, &instance_), "vkCreateInstance");
 }
 
 void VulkanContext::createSurface(GLFWwindow* window) {
@@ -129,19 +124,19 @@ void VulkanContext::createSurface(GLFWwindow* window) {
         throw std::runtime_error("Cannot create Vulkan surface with a null GLFW window.");
     }
 
-    checkVk(glfwCreateWindowSurface(instance_, window, nullptr, &surface_), "glfwCreateWindowSurface");
+    vulkan_utils::checkVk(glfwCreateWindowSurface(instance_, window, nullptr, &surface_), "glfwCreateWindowSurface");
 }
 
 void VulkanContext::pickPhysicalDevice() {
     uint32_t deviceCount = 0;
-    checkVk(vkEnumeratePhysicalDevices(instance_, &deviceCount, nullptr), "vkEnumeratePhysicalDevices");
+    vulkan_utils::checkVk(vkEnumeratePhysicalDevices(instance_, &deviceCount, nullptr), "vkEnumeratePhysicalDevices");
 
     if (deviceCount == 0) {
         throw std::runtime_error("No Vulkan physical device was found.");
     }
 
     std::vector<VkPhysicalDevice> devices(deviceCount);
-    checkVk(vkEnumeratePhysicalDevices(instance_, &deviceCount, devices.data()), "vkEnumeratePhysicalDevices");
+    vulkan_utils::checkVk(vkEnumeratePhysicalDevices(instance_, &deviceCount, devices.data()), "vkEnumeratePhysicalDevices");
 
     // 优先选择独显，其次核显；但前提是必须同时支持 graphics、present 和 swapchain。
     auto bestDevice = std::max_element(devices.begin(), devices.end(), [this](VkPhysicalDevice left, VkPhysicalDevice right) {
@@ -186,16 +181,16 @@ void VulkanContext::createLogicalDevice() {
         .pEnabledFeatures = &deviceFeatures,
     };
 
-    checkVk(vkCreateDevice(physicalDevice_, &createInfo, nullptr, &device_), "vkCreateDevice");
+    vulkan_utils::checkVk(vkCreateDevice(physicalDevice_, &createInfo, nullptr, &device_), "vkCreateDevice");
     vkGetDeviceQueue(device_, graphicsQueueFamilyIndex_, 0, &graphicsQueue_);
 }
 
 bool VulkanContext::validationLayerAvailable() const {
     uint32_t layerCount = 0;
-    checkVk(vkEnumerateInstanceLayerProperties(&layerCount, nullptr), "vkEnumerateInstanceLayerProperties");
+    vulkan_utils::checkVk(vkEnumerateInstanceLayerProperties(&layerCount, nullptr), "vkEnumerateInstanceLayerProperties");
 
     std::vector<VkLayerProperties> layers(layerCount);
-    checkVk(vkEnumerateInstanceLayerProperties(&layerCount, layers.data()), "vkEnumerateInstanceLayerProperties");
+    vulkan_utils::checkVk(vkEnumerateInstanceLayerProperties(&layerCount, layers.data()), "vkEnumerateInstanceLayerProperties");
 
     return std::any_of(layers.begin(), layers.end(), [](const VkLayerProperties& layer) {
         return std::strcmp(layer.layerName, ValidationLayer) == 0;
@@ -204,10 +199,10 @@ bool VulkanContext::validationLayerAvailable() const {
 
 bool VulkanContext::deviceSupportsRequiredExtensions(VkPhysicalDevice device) const {
     uint32_t extensionCount = 0;
-    checkVk(vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr), "vkEnumerateDeviceExtensionProperties");
+    vulkan_utils::checkVk(vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr), "vkEnumerateDeviceExtensionProperties");
 
     std::vector<VkExtensionProperties> extensions(extensionCount);
-    checkVk(vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, extensions.data()), "vkEnumerateDeviceExtensionProperties");
+    vulkan_utils::checkVk(vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, extensions.data()), "vkEnumerateDeviceExtensionProperties");
 
     for (const char* requiredExtension : RequiredDeviceExtensions) {
         const bool found = std::any_of(extensions.begin(), extensions.end(), [requiredExtension](const VkExtensionProperties& extension) {
@@ -231,7 +226,7 @@ uint32_t VulkanContext::findGraphicsPresentQueueFamily(VkPhysicalDevice device) 
 
     for (uint32_t index = 0; index < familyCount; ++index) {
         VkBool32 presentSupported = VK_FALSE;
-        checkVk(vkGetPhysicalDeviceSurfaceSupportKHR(device, index, surface_, &presentSupported), "vkGetPhysicalDeviceSurfaceSupportKHR");
+        vulkan_utils::checkVk(vkGetPhysicalDeviceSurfaceSupportKHR(device, index, surface_, &presentSupported), "vkGetPhysicalDeviceSurfaceSupportKHR");
 
         // 有些设备 graphics 和 present 分属不同队列。为了第一版保持简单，
         // 这里先选择同时支持两者的 queue family。

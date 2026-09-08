@@ -171,6 +171,8 @@ add_executable(vulkan_advanced_demo
     src/main.cpp
     src/GlfwWindow.cpp
     src/VulkanContext.cpp
+    src/VulkanSwapchain.cpp
+    src/VulkanUtils.cpp
 )
 
 target_include_directories(vulkan_advanced_demo
