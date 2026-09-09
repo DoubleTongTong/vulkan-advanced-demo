@@ -74,6 +74,14 @@ void GlfwWindow::run() {
     }
 }
 
+bool GlfwWindow::shouldClose() const {
+    return glfwWindowShouldClose(window_);
+}
+
+void GlfwWindow::pollEvents() const {
+    glfwPollEvents();
+}
+
 GLFWwindow* GlfwWindow::handle() const {
     return window_;
 }

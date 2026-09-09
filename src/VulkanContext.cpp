@@ -90,6 +90,53 @@ uint32_t VulkanContext::graphicsQueueFamilyIndex() const {
     return graphicsQueueFamilyIndex_;
 }
 
+VkSemaphore VulkanContext::createSemaphore(const char* debugName) const {
+    const VkSemaphoreCreateInfo createInfo{
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+    };
+
+    VkSemaphore semaphore = VK_NULL_HANDLE;
+    vulkan_utils::checkVk(
+        vkCreateSemaphore(device_, &createInfo, nullptr, &semaphore),
+        "vkCreateSemaphore");
+    setDebugObjectName(VK_OBJECT_TYPE_SEMAPHORE, reinterpret_cast<uint64_t>(semaphore), debugName);
+    return semaphore;
+}
+
+VkSemaphore VulkanContext::createTimelineSemaphore(uint64_t initialValue, const char* debugName) const {
+    const VkSemaphoreTypeCreateInfo typeInfo{
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO,
+        .semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE,
+        .initialValue = initialValue,
+    };
+
+    const VkSemaphoreCreateInfo createInfo{
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+        .pNext = &typeInfo,
+    };
+
+    VkSemaphore semaphore = VK_NULL_HANDLE;
+    vulkan_utils::checkVk(
+        vkCreateSemaphore(device_, &createInfo, nullptr, &semaphore),
+        "vkCreateSemaphore");
+    setDebugObjectName(VK_OBJECT_TYPE_SEMAPHORE, reinterpret_cast<uint64_t>(semaphore), debugName);
+    return semaphore;
+}
+
+VkFence VulkanContext::createFence(bool signaled, const char* debugName) const {
+    const VkFenceCreateInfo createInfo{
+        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+        .flags = signaled ? VK_FENCE_CREATE_SIGNALED_BIT : 0u,
+    };
+
+    VkFence fence = VK_NULL_HANDLE;
+    vulkan_utils::checkVk(
+        vkCreateFence(device_, &createInfo, nullptr, &fence),
+        "vkCreateFence");
+    setDebugObjectName(VK_OBJECT_TYPE_FENCE, reinterpret_cast<uint64_t>(fence), debugName);
+    return fence;
+}
+
 void VulkanContext::setDebugObjectName(VkObjectType type, uint64_t handle, const char* name) const {
     if (!setDebugUtilsObjectName_ || !name || !*name) {
         return;
@@ -196,15 +243,23 @@ void VulkanContext::createLogicalDevice() {
         .pQueuePriorities = &queuePriority,
     };
 
-    VkPhysicalDeviceFeatures deviceFeatures{};
+    VkPhysicalDeviceVulkan13Features vulkan13Features{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+        .synchronization2 = VK_TRUE,
+    };
+    VkPhysicalDeviceVulkan12Features vulkan12Features{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+        .pNext = &vulkan13Features,
+        .timelineSemaphore = VK_TRUE,
+    };
 
     const VkDeviceCreateInfo createInfo{
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+        .pNext = &vulkan12Features,
         .queueCreateInfoCount = 1,
         .pQueueCreateInfos = &queueCreateInfo,
         .enabledExtensionCount = static_cast<uint32_t>(std::size(RequiredDeviceExtensions)),
         .ppEnabledExtensionNames = RequiredDeviceExtensions,
-        .pEnabledFeatures = &deviceFeatures,
     };
 
     vulkan_utils::checkVk(vkCreateDevice(physicalDevice_, &createInfo, nullptr, &device_), "vkCreateDevice");
@@ -274,6 +329,24 @@ bool VulkanContext::deviceSupportsRequiredExtensions(VkPhysicalDevice device) co
     return true;
 }
 
+bool VulkanContext::deviceSupportsRequiredFeatures(VkPhysicalDevice device) const {
+    VkPhysicalDeviceVulkan13Features vulkan13Features{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+    };
+    VkPhysicalDeviceVulkan12Features vulkan12Features{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+        .pNext = &vulkan13Features,
+    };
+    VkPhysicalDeviceFeatures2 features{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+        .pNext = &vulkan12Features,
+    };
+
+    vkGetPhysicalDeviceFeatures2(device, &features);
+    return vulkan12Features.timelineSemaphore == VK_TRUE &&
+           vulkan13Features.synchronization2 == VK_TRUE;
+}
+
 uint32_t VulkanContext::findGraphicsPresentQueueFamily(VkPhysicalDevice device) const {
     uint32_t familyCount = 0;
     vkGetPhysicalDeviceQueueFamilyProperties(device, &familyCount, nullptr);
@@ -298,7 +371,9 @@ uint32_t VulkanContext::findGraphicsPresentQueueFamily(VkPhysicalDevice device) 
 
 int VulkanContext::deviceScore(VkPhysicalDevice device) const {
     const uint32_t queueFamily = findGraphicsPresentQueueFamily(device);
-    if (queueFamily == InvalidQueueFamily || !deviceSupportsRequiredExtensions(device)) {
+    if (queueFamily == InvalidQueueFamily ||
+        !deviceSupportsRequiredExtensions(device) ||
+        !deviceSupportsRequiredFeatures(device)) {
         return -1;
     }
 

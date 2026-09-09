@@ -14,6 +14,8 @@ public:
     GlfwWindow& operator=(const GlfwWindow&) = delete;
 
     void run();
+    bool shouldClose() const;
+    void pollEvents() const;
 
     GLFWwindow* handle() const;
     uint32_t width() const;

@@ -9,6 +9,10 @@
 #include <stdexcept>
 #include <vector>
 
+bool VulkanSwapchain::AcquiredImage::shouldRender() const {
+    return result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR;
+}
+
 VulkanSwapchain::VulkanSwapchain(const VulkanContext& context, uint32_t width, uint32_t height)
     : context_(context) {
     create(width, height);
@@ -33,8 +37,43 @@ VkExtent2D VulkanSwapchain::extent() const {
     return extent_;
 }
 
+VkImageUsageFlags VulkanSwapchain::imageUsage() const {
+    return imageUsage_;
+}
+
 const std::vector<VkImage>& VulkanSwapchain::images() const {
     return images_;
+}
+
+VulkanSwapchain::AcquiredImage VulkanSwapchain::acquireNextImage(VkSemaphore imageAvailable) const {
+    AcquiredImage acquiredImage{};
+
+    acquiredImage.result = vkAcquireNextImageKHR(
+        context_.device(),
+        swapchain_,
+        std::numeric_limits<uint64_t>::max(),
+        imageAvailable,
+        VK_NULL_HANDLE,
+        &acquiredImage.imageIndex);
+
+    if (acquiredImage.shouldRender()) {
+        acquiredImage.image = images_[acquiredImage.imageIndex];
+    }
+
+    return acquiredImage;
+}
+
+VkResult VulkanSwapchain::present(const AcquiredImage& image, VkSemaphore renderFinished) const {
+    const VkPresentInfoKHR presentInfo{
+        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .waitSemaphoreCount = renderFinished ? 1u : 0u,
+        .pWaitSemaphores = renderFinished ? &renderFinished : nullptr,
+        .swapchainCount = 1,
+        .pSwapchains = &swapchain_,
+        .pImageIndices = &image.imageIndex,
+    };
+
+    return vkQueuePresentKHR(context_.graphicsQueue(), &presentInfo);
 }
 
 void VulkanSwapchain::create(uint32_t width, uint32_t height) {
@@ -44,6 +83,7 @@ void VulkanSwapchain::create(uint32_t width, uint32_t height) {
 
     imageFormat_ = surfaceFormat.format;
     extent_ = chooseExtent(capabilities, width, height);
+    imageUsage_ = chooseImageUsage(surfaceFormat.format, capabilities);
 
     const bool opaqueSupported =
         (capabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR) != 0;
@@ -57,7 +97,7 @@ void VulkanSwapchain::create(uint32_t width, uint32_t height) {
         .imageColorSpace = surfaceFormat.colorSpace,
         .imageExtent = extent_,
         .imageArrayLayers = 1,
-        .imageUsage = chooseImageUsage(surfaceFormat.format, capabilities),
+        .imageUsage = imageUsage_,
         .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .queueFamilyIndexCount = 1,
         .pQueueFamilyIndices = &queueFamilyIndex,

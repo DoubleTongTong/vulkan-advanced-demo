@@ -172,6 +172,8 @@ add_executable(vulkan_advanced_demo
     src/GlfwWindow.cpp
     src/VulkanContext.cpp
     src/VulkanDebugMessenger.cpp
+    src/VulkanFrameSync.cpp
+    src/VulkanImmediateCommands.cpp
     src/VulkanSwapchain.cpp
     src/VulkanUtils.cpp
 )

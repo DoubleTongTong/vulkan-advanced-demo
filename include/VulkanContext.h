@@ -24,6 +24,9 @@ public:
     VkDevice device() const;
     VkQueue graphicsQueue() const;
     uint32_t graphicsQueueFamilyIndex() const;
+    VkSemaphore createSemaphore(const char* debugName = nullptr) const;
+    VkSemaphore createTimelineSemaphore(uint64_t initialValue = 0, const char* debugName = nullptr) const;
+    VkFence createFence(bool signaled = false, const char* debugName = nullptr) const;
     void setDebugObjectName(VkObjectType type, uint64_t handle, const char* name) const;
 
 private:
@@ -38,6 +41,7 @@ private:
     bool validationLayerAvailable() const;
     bool instanceExtensionAvailable(const char* name) const;
     bool deviceSupportsRequiredExtensions(VkPhysicalDevice device) const;
+    bool deviceSupportsRequiredFeatures(VkPhysicalDevice device) const;
     uint32_t findGraphicsPresentQueueFamily(VkPhysicalDevice device) const;
     int deviceScore(VkPhysicalDevice device) const;
     std::vector<const char*> requiredInstanceExtensions() const;
