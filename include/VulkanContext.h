@@ -1,8 +1,11 @@
 #pragma once
 
+#include "VulkanDebugMessenger.h"
+
 #include <vulkan/vulkan.h>
 
 #include <cstdint>
+#include <memory>
 #include <vector>
 
 struct GLFWwindow;
@@ -21,6 +24,7 @@ public:
     VkDevice device() const;
     VkQueue graphicsQueue() const;
     uint32_t graphicsQueueFamilyIndex() const;
+    void setDebugObjectName(VkObjectType type, uint64_t handle, const char* name) const;
 
 private:
     static constexpr uint32_t InvalidQueueFamily = UINT32_MAX;
@@ -29,8 +33,10 @@ private:
     void createSurface(GLFWwindow* window);
     void pickPhysicalDevice();
     void createLogicalDevice();
+    void loadDeviceDebugFunctions();
 
     bool validationLayerAvailable() const;
+    bool instanceExtensionAvailable(const char* name) const;
     bool deviceSupportsRequiredExtensions(VkPhysicalDevice device) const;
     uint32_t findGraphicsPresentQueueFamily(VkPhysicalDevice device) const;
     int deviceScore(VkPhysicalDevice device) const;
@@ -41,6 +47,8 @@ private:
     VkPhysicalDevice physicalDevice_ = VK_NULL_HANDLE;
     VkDevice device_ = VK_NULL_HANDLE;
     VkQueue graphicsQueue_ = VK_NULL_HANDLE;
+    PFN_vkSetDebugUtilsObjectNameEXT setDebugUtilsObjectName_ = nullptr;
     uint32_t graphicsQueueFamilyIndex_ = InvalidQueueFamily;
     bool validationEnabled_ = false;
+    std::unique_ptr<VulkanDebugMessenger> debugMessenger_;
 };

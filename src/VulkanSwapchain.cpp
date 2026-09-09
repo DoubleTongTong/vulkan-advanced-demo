@@ -69,6 +69,7 @@ void VulkanSwapchain::create(uint32_t width, uint32_t height) {
     };
 
     vulkan_utils::checkVk(vkCreateSwapchainKHR(context_.device(), &createInfo, nullptr, &swapchain_), "vkCreateSwapchainKHR");
+    context_.setDebugObjectName(VK_OBJECT_TYPE_SWAPCHAIN_KHR, reinterpret_cast<uint64_t>(swapchain_), "Main swapchain");
 
     std::cout << "Swapchain image count: " << createInfo.minImageCount << '\n';
     std::cout << "Swapchain extent: " << extent_.width << "x" << extent_.height << '\n';

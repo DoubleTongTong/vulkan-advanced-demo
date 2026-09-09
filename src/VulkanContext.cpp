@@ -8,7 +8,9 @@
 #include <cstring>
 #include <iostream>
 #include <iterator>
+#include <memory>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 namespace {
@@ -37,8 +39,11 @@ std::string deviceTypeName(VkPhysicalDeviceType type) {
 
 VulkanContext::VulkanContext(GLFWwindow* window) {
     // Vulkan 的启动顺序很固定：先 instance，再创建窗口 surface，
-    // 然后选择物理显卡，最后基于它创建逻辑设备和队列。
+    // 然后挂上调试回调，选择物理显卡，最后基于它创建逻辑设备和队列。
     createInstance();
+    if (validationEnabled_) {
+        debugMessenger_ = std::make_unique<VulkanDebugMessenger>(instance_);
+    }
     createSurface(window);
     pickPhysicalDevice();
     createLogicalDevice();
@@ -53,6 +58,8 @@ VulkanContext::~VulkanContext() {
     if (surface_) {
         vkDestroySurfaceKHR(instance_, surface_, nullptr);
     }
+
+    debugMessenger_.reset();
 
     if (instance_) {
         vkDestroyInstance(instance_, nullptr);
@@ -83,15 +90,34 @@ uint32_t VulkanContext::graphicsQueueFamilyIndex() const {
     return graphicsQueueFamilyIndex_;
 }
 
+void VulkanContext::setDebugObjectName(VkObjectType type, uint64_t handle, const char* name) const {
+    if (!setDebugUtilsObjectName_ || !name || !*name) {
+        return;
+    }
+
+    const VkDebugUtilsObjectNameInfoEXT nameInfo{
+        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+        .objectType = type,
+        .objectHandle = handle,
+        .pObjectName = name,
+    };
+
+    vulkan_utils::checkVk(
+        setDebugUtilsObjectName_(device_, &nameInfo),
+        "vkSetDebugUtilsObjectNameEXT");
+}
+
 void VulkanContext::createInstance() {
     if (!glfwVulkanSupported()) {
         throw std::runtime_error("GLFW reports Vulkan is not supported on this system.");
     }
 
-    validationEnabled_ = validationLayerAvailable();
+    validationEnabled_ =
+        validationLayerAvailable() &&
+        instanceExtensionAvailable(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 
     if (!validationEnabled_) {
-        std::cout << "Vulkan validation layer is not available, continue without it.\n";
+        std::cout << "Vulkan debug utils are not fully available, continue without validation callback.\n";
     }
 
     const VkApplicationInfo appInfo{
@@ -183,6 +209,21 @@ void VulkanContext::createLogicalDevice() {
 
     vulkan_utils::checkVk(vkCreateDevice(physicalDevice_, &createInfo, nullptr, &device_), "vkCreateDevice");
     vkGetDeviceQueue(device_, graphicsQueueFamilyIndex_, 0, &graphicsQueue_);
+
+    loadDeviceDebugFunctions();
+    setDebugObjectName(VK_OBJECT_TYPE_DEVICE, reinterpret_cast<uint64_t>(device_), "VulkanContext device");
+}
+
+void VulkanContext::loadDeviceDebugFunctions() {
+    if (!validationEnabled_) {
+        return;
+    }
+
+    // device 创建好以后，只查一次 device-level debug utils 函数指针。
+    // 后面给任意 Vulkan 对象命名时直接复用它，避免反复 vkGetDeviceProcAddr。
+    setDebugUtilsObjectName_ =
+        reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(
+            vkGetDeviceProcAddr(device_, "vkSetDebugUtilsObjectNameEXT"));
 }
 
 bool VulkanContext::validationLayerAvailable() const {
@@ -194,6 +235,22 @@ bool VulkanContext::validationLayerAvailable() const {
 
     return std::any_of(layers.begin(), layers.end(), [](const VkLayerProperties& layer) {
         return std::strcmp(layer.layerName, ValidationLayer) == 0;
+    });
+}
+
+bool VulkanContext::instanceExtensionAvailable(const char* name) const {
+    uint32_t extensionCount = 0;
+    vulkan_utils::checkVk(
+        vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr),
+        "vkEnumerateInstanceExtensionProperties");
+
+    std::vector<VkExtensionProperties> extensions(extensionCount);
+    vulkan_utils::checkVk(
+        vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data()),
+        "vkEnumerateInstanceExtensionProperties");
+
+    return std::any_of(extensions.begin(), extensions.end(), [name](const VkExtensionProperties& extension) {
+        return std::strcmp(extension.extensionName, name) == 0;
     });
 }
 
@@ -267,5 +324,10 @@ std::vector<const char*> VulkanContext::requiredInstanceExtensions() const {
     }
 
     std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+
+    if (validationEnabled_) {
+        extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+    }
+
     return extensions;
 }

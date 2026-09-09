@@ -1,7 +1,7 @@
 #include "VulkanUtils.h"
 
-#include <stdexcept>
 #include <string>
+#include <stdexcept>
 
 namespace vulkan_utils {
 
