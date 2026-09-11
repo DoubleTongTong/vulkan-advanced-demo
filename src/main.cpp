@@ -2,11 +2,13 @@
 #include "VulkanContext.h"
 #include "VulkanFrameSync.h"
 #include "VulkanImmediateCommands.h"
+#include "VulkanShaderModule.h"
 #include "VulkanSwapchain.h"
 #include "VulkanUtils.h"
 
 #include <cstdint>
 #include <exception>
+#include <filesystem>
 #include <iostream>
 #include <stdexcept>
 #include <vector>
@@ -112,6 +114,18 @@ int main() {
 
         // 先完成 Vulkan 最基础的上下文创建：instance、surface、device 和 graphics queue。
         VulkanContext vulkan(window.handle());
+
+        const std::filesystem::path shaderDir = APP_SHADER_DIR;
+        const VulkanShaderModule vertexShader =
+            VulkanShaderModule::fromFile(vulkan, shaderDir / "main.vert");
+        const VulkanShaderModule fragmentShader =
+            VulkanShaderModule::fromFile(vulkan, shaderDir / "main.frag");
+
+        std::cout << "Created shader modules. Vertex push constants: "
+                  << vertexShader.pushConstantSize()
+                  << " bytes, fragment push constants: "
+                  << fragmentShader.pushConstantSize()
+                  << " bytes.\n";
 
         // Swapchain 管理一组可以呈现到窗口上的图像，后续渲染会围绕它展开。
         VulkanSwapchain swapchain(vulkan, window.width(), window.height());

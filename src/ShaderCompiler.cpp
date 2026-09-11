@@ -132,7 +132,12 @@ ShaderCompileResult ShaderCompiler::compile(ShaderStage stage, const std::string
 
 ShaderStage ShaderCompiler::stageFromFileName(const std::string& fileName) {
     const std::filesystem::path path(fileName);
-    std::string extension = path.extension().string();
+    std::filesystem::path stagePath = path;
+    if (stagePath.extension() == ".spv") {
+        stagePath = stagePath.stem();
+    }
+
+    std::string extension = stagePath.extension().string();
 
     std::ranges::transform(extension, extension.begin(), [](unsigned char ch) {
         return static_cast<char>(std::tolower(ch));

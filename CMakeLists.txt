@@ -174,8 +174,14 @@ add_executable(vulkan_advanced_demo
     src/VulkanDebugMessenger.cpp
     src/VulkanFrameSync.cpp
     src/VulkanImmediateCommands.cpp
+    src/VulkanShaderModule.cpp
     src/VulkanSwapchain.cpp
     src/VulkanUtils.cpp
+)
+
+target_compile_definitions(vulkan_advanced_demo
+    PRIVATE
+        APP_SHADER_DIR="${CMAKE_SOURCE_DIR}/demos/glslang/shaders"
 )
 
 target_include_directories(vulkan_advanced_demo
@@ -191,6 +197,7 @@ target_compile_options(vulkan_advanced_demo
 target_link_libraries(vulkan_advanced_demo
     PRIVATE
         glfw
+        shader_compiler
         Vulkan::Vulkan
 )
 
