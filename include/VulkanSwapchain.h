@@ -28,12 +28,14 @@ public:
     VkExtent2D extent() const;
     VkImageUsageFlags imageUsage() const;
     const std::vector<VkImage>& images() const;
+    const std::vector<VkImageView>& imageViews() const;
     AcquiredImage acquireNextImage(VkSemaphore imageAvailable) const;
     VkResult present(const AcquiredImage& image, VkSemaphore renderFinished) const;
 
 private:
     void create(uint32_t width, uint32_t height);
     void loadImages();
+    void createImageViews();
 
     VkSurfaceCapabilitiesKHR querySurfaceCapabilities() const;
     std::vector<VkSurfaceFormatKHR> querySurfaceFormats() const;
@@ -51,4 +53,5 @@ private:
     VkImageUsageFlags imageUsage_ = 0;
     VkExtent2D extent_{};
     std::vector<VkImage> images_;
+    std::vector<VkImageView> imageViews_;
 };

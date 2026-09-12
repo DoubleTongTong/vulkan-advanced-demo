@@ -17,9 +17,14 @@ VulkanSwapchain::VulkanSwapchain(const VulkanContext& context, uint32_t width, u
     : context_(context) {
     create(width, height);
     loadImages();
+    createImageViews();
 }
 
 VulkanSwapchain::~VulkanSwapchain() {
+    for (VkImageView imageView : imageViews_) {
+        vkDestroyImageView(context_.device(), imageView, nullptr);
+    }
+
     if (swapchain_) {
         vkDestroySwapchainKHR(context_.device(), swapchain_, nullptr);
     }
@@ -43,6 +48,10 @@ VkImageUsageFlags VulkanSwapchain::imageUsage() const {
 
 const std::vector<VkImage>& VulkanSwapchain::images() const {
     return images_;
+}
+
+const std::vector<VkImageView>& VulkanSwapchain::imageViews() const {
+    return imageViews_;
 }
 
 VulkanSwapchain::AcquiredImage VulkanSwapchain::acquireNextImage(VkSemaphore imageAvailable) const {
@@ -121,6 +130,40 @@ void VulkanSwapchain::loadImages() {
 
     images_.resize(imageCount);
     vulkan_utils::checkVk(vkGetSwapchainImagesKHR(context_.device(), swapchain_, &imageCount, images_.data()), "vkGetSwapchainImagesKHR");
+}
+
+void VulkanSwapchain::createImageViews() {
+    imageViews_.resize(images_.size());
+
+    for (size_t i = 0; i < images_.size(); ++i) {
+        const VkImageViewCreateInfo createInfo{
+            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .image = images_[i],
+            .viewType = VK_IMAGE_VIEW_TYPE_2D,
+            .format = imageFormat_,
+            .components = {
+                .r = VK_COMPONENT_SWIZZLE_IDENTITY,
+                .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+                .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+                .a = VK_COMPONENT_SWIZZLE_IDENTITY,
+            },
+            .subresourceRange = {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .baseMipLevel = 0,
+                .levelCount = 1,
+                .baseArrayLayer = 0,
+                .layerCount = 1,
+            },
+        };
+
+        vulkan_utils::checkVk(
+            vkCreateImageView(context_.device(), &createInfo, nullptr, &imageViews_[i]),
+            "vkCreateImageView");
+        context_.setDebugObjectName(
+            VK_OBJECT_TYPE_IMAGE_VIEW,
+            reinterpret_cast<uint64_t>(imageViews_[i]),
+            "Swapchain image view");
+    }
 }
 
 VkSurfaceCapabilitiesKHR VulkanSwapchain::querySurfaceCapabilities() const {

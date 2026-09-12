@@ -170,10 +170,12 @@ target_link_libraries(texture_compressor
 add_executable(vulkan_advanced_demo
     src/main.cpp
     src/GlfwWindow.cpp
+    src/rendering/TriangleCommandRecorder.cpp
     src/VulkanContext.cpp
     src/VulkanDebugMessenger.cpp
     src/VulkanFrameSync.cpp
     src/VulkanImmediateCommands.cpp
+    src/VulkanRenderPipeline.cpp
     src/VulkanShaderModule.cpp
     src/VulkanSwapchain.cpp
     src/VulkanUtils.cpp

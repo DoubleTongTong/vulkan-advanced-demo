@@ -246,6 +246,7 @@ void VulkanContext::createLogicalDevice() {
     VkPhysicalDeviceVulkan13Features vulkan13Features{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
         .synchronization2 = VK_TRUE,
+        .dynamicRendering = VK_TRUE,
     };
     VkPhysicalDeviceVulkan12Features vulkan12Features{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
@@ -344,6 +345,7 @@ bool VulkanContext::deviceSupportsRequiredFeatures(VkPhysicalDevice device) cons
 
     vkGetPhysicalDeviceFeatures2(device, &features);
     return vulkan12Features.timelineSemaphore == VK_TRUE &&
+           vulkan13Features.dynamicRendering == VK_TRUE &&
            vulkan13Features.synchronization2 == VK_TRUE;
 }
 
