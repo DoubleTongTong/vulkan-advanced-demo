@@ -51,6 +51,14 @@ set(KTX_FEATURE_TOOLS OFF CACHE BOOL "" FORCE)
 set(KTX_FEATURE_LOADTEST_APPS OFF CACHE STRING "" FORCE)
 set(KTX_FEATURE_VK_UPLOAD OFF CACHE BOOL "" FORCE)
 
+# Assimp 只作为模型加载库使用，不构建工具、测试和安装目标。
+set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "" FORCE)
+set(ASSIMP_NO_EXPORT ON CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_ALL_IMPORTERS_BY_DEFAULT OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_GLTF_IMPORTER ON CACHE BOOL "" FORCE)
+
 FetchContent_Declare(
     glfw
     GIT_REPOSITORY https://github.com/glfw/glfw.git
@@ -87,11 +95,31 @@ FetchContent_Declare(
     GIT_TAG 2c980bb59875b0d32144a71867fbdebb2f77cd20
 )
 
+FetchContent_Declare(
+    vma
+    GIT_REPOSITORY https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+    GIT_TAG v3.3.0
+)
+
+FetchContent_Declare(
+    assimp
+    GIT_REPOSITORY https://github.com/assimp/assimp.git
+    GIT_TAG v5.4.3
+)
+
+FetchContent_Declare(
+    glm
+    GIT_REPOSITORY https://github.com/g-truc/glm.git
+    GIT_TAG 1.0.1
+)
+
 # BC7 demo 使用 Bistro 数据集中的一张真实纹理做验证。
 # assets/ 默认只提交 README；如果没有下载数据集，配置阶段就给出明确提示。
 set(BC7_DEMO_INPUT_TEXTURE
     "${CMAKE_SOURCE_DIR}/assets/PropTextures/Bistro/Paris_Painting_01/Paris_Paintings_01_Diff.png"
 )
+
+set(RUBBER_DUCK_SCENE "${CMAKE_SOURCE_DIR}/assets/rubber_duck/scene.gltf")
 
 if(NOT EXISTS "${BC7_DEMO_INPUT_TEXTURE}")
     message(FATAL_ERROR
@@ -107,6 +135,9 @@ FetchContent_MakeAvailable(glslang)
 FetchContent_MakeAvailable(spirv_reflect)
 FetchContent_MakeAvailable(ktx)
 FetchContent_MakeAvailable(stb)
+FetchContent_MakeAvailable(vma)
+FetchContent_MakeAvailable(assimp)
+FetchContent_MakeAvailable(glm)
 
 add_library(shader_compiler
     src/ShaderCompiler.cpp
@@ -170,7 +201,11 @@ target_link_libraries(texture_compressor
 add_executable(vulkan_advanced_demo
     src/main.cpp
     src/GlfwWindow.cpp
+    src/ModelLoader.cpp
+    src/rendering/RubberDuckCommandRecorder.cpp
     src/rendering/TriangleCommandRecorder.cpp
+    src/VmaImplementation.cpp
+    src/VulkanBuffer.cpp
     src/VulkanContext.cpp
     src/VulkanDebugMessenger.cpp
     src/VulkanFrameSync.cpp
@@ -183,12 +218,14 @@ add_executable(vulkan_advanced_demo
 
 target_compile_definitions(vulkan_advanced_demo
     PRIVATE
-        APP_SHADER_DIR="${CMAKE_SOURCE_DIR}/demos/glslang/shaders"
+        APP_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/rubber_duck"
+        RUBBER_DUCK_SCENE="${RUBBER_DUCK_SCENE}"
 )
 
 target_include_directories(vulkan_advanced_demo
     PRIVATE
         include
+        ${vma_SOURCE_DIR}/include
 )
 
 target_compile_options(vulkan_advanced_demo
@@ -199,6 +236,8 @@ target_compile_options(vulkan_advanced_demo
 target_link_libraries(vulkan_advanced_demo
     PRIVATE
         glfw
+        assimp
+        glm::glm
         shader_compiler
         Vulkan::Vulkan
 )

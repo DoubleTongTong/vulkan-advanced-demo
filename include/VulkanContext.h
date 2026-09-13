@@ -9,6 +9,8 @@
 #include <vector>
 
 struct GLFWwindow;
+struct VmaAllocator_T;
+using VmaAllocator = VmaAllocator_T*;
 
 class VulkanContext {
 public:
@@ -22,6 +24,7 @@ public:
     VkSurfaceKHR surface() const;
     VkPhysicalDevice physicalDevice() const;
     VkDevice device() const;
+    VmaAllocator allocator() const;
     VkQueue graphicsQueue() const;
     uint32_t graphicsQueueFamilyIndex() const;
     VkSemaphore createSemaphore(const char* debugName = nullptr) const;
@@ -36,6 +39,7 @@ private:
     void createSurface(GLFWwindow* window);
     void pickPhysicalDevice();
     void createLogicalDevice();
+    void createAllocator();
     void loadDeviceDebugFunctions();
 
     bool validationLayerAvailable() const;
@@ -50,6 +54,7 @@ private:
     VkSurfaceKHR surface_ = VK_NULL_HANDLE;
     VkPhysicalDevice physicalDevice_ = VK_NULL_HANDLE;
     VkDevice device_ = VK_NULL_HANDLE;
+    VmaAllocator allocator_ = nullptr;
     VkQueue graphicsQueue_ = VK_NULL_HANDLE;
     PFN_vkSetDebugUtilsObjectNameEXT setDebugUtilsObjectName_ = nullptr;
     uint32_t graphicsQueueFamilyIndex_ = InvalidQueueFamily;

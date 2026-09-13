@@ -87,6 +87,8 @@ notes/
 # Large local assets
 assets/*
 !assets/README.md
+!assets/rubber_duck/
+!assets/rubber_duck/**
 
 # Dependency caches
 .cache/

@@ -2,54 +2,9 @@
 
 #include "VulkanShaderModule.h"
 #include "VulkanSwapchain.h"
+#include "VulkanUtils.h"
 
 #include <stdexcept>
-
-namespace {
-
-void transitionImage(
-    VkCommandBuffer commandBuffer,
-    VkImage image,
-    VkImageLayout oldLayout,
-    VkImageLayout newLayout,
-    VkAccessFlags srcAccess,
-    VkAccessFlags dstAccess,
-    VkPipelineStageFlags srcStage,
-    VkPipelineStageFlags dstStage) {
-    const VkImageSubresourceRange colorRange{
-        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-        .baseMipLevel = 0,
-        .levelCount = 1,
-        .baseArrayLayer = 0,
-        .layerCount = 1,
-    };
-
-    const VkImageMemoryBarrier barrier{
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .srcAccessMask = srcAccess,
-        .dstAccessMask = dstAccess,
-        .oldLayout = oldLayout,
-        .newLayout = newLayout,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image = image,
-        .subresourceRange = colorRange,
-    };
-
-    vkCmdPipelineBarrier(
-        commandBuffer,
-        srcStage,
-        dstStage,
-        0,
-        0,
-        nullptr,
-        0,
-        nullptr,
-        1,
-        &barrier);
-}
-
-} // namespace
 
 TriangleCommandRecorder::TriangleCommandRecorder(
     const VulkanContext& context,
@@ -76,9 +31,10 @@ void TriangleCommandRecorder::record(VkCommandBuffer commandBuffer, uint32_t ima
     const VkImageView imageView = swapchain_.imageViews()[imageIndex];
     const VkExtent2D extent = swapchain_.extent();
 
-    transitionImage(
+    vulkan_utils::transitionImage(
         commandBuffer,
         image,
+        VK_IMAGE_ASPECT_COLOR_BIT,
         imageLayouts_[imageIndex],
         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         0,
@@ -146,9 +102,10 @@ void TriangleCommandRecorder::record(VkCommandBuffer commandBuffer, uint32_t ima
     vkCmdDraw(commandBuffer, 3, 1, 0, 0);
     vkCmdEndRendering(commandBuffer);
 
-    transitionImage(
+    vulkan_utils::transitionImage(
         commandBuffer,
         image,
+        VK_IMAGE_ASPECT_COLOR_BIT,
         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
         VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,

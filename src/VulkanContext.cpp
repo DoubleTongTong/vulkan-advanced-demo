@@ -3,6 +3,7 @@
 #include "VulkanUtils.h"
 
 #include <GLFW/glfw3.h>
+#include <vk_mem_alloc.h>
 
 #include <algorithm>
 #include <cstring>
@@ -47,10 +48,15 @@ VulkanContext::VulkanContext(GLFWwindow* window) {
     createSurface(window);
     pickPhysicalDevice();
     createLogicalDevice();
+    createAllocator();
 }
 
 VulkanContext::~VulkanContext() {
     // 销毁顺序要和创建顺序相反：device 依赖 instance/surface，必须先释放。
+    if (allocator_) {
+        vmaDestroyAllocator(allocator_);
+    }
+
     if (device_) {
         vkDestroyDevice(device_, nullptr);
     }
@@ -80,6 +86,10 @@ VkPhysicalDevice VulkanContext::physicalDevice() const {
 
 VkDevice VulkanContext::device() const {
     return device_;
+}
+
+VmaAllocator VulkanContext::allocator() const {
+    return allocator_;
 }
 
 VkQueue VulkanContext::graphicsQueue() const {
@@ -253,10 +263,17 @@ void VulkanContext::createLogicalDevice() {
         .pNext = &vulkan13Features,
         .timelineSemaphore = VK_TRUE,
     };
+    VkPhysicalDeviceFeatures2 features{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+        .pNext = &vulkan12Features,
+        .features = {
+            .fillModeNonSolid = VK_TRUE,
+        },
+    };
 
     const VkDeviceCreateInfo createInfo{
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-        .pNext = &vulkan12Features,
+        .pNext = &features,
         .queueCreateInfoCount = 1,
         .pQueueCreateInfos = &queueCreateInfo,
         .enabledExtensionCount = static_cast<uint32_t>(std::size(RequiredDeviceExtensions)),
@@ -268,6 +285,19 @@ void VulkanContext::createLogicalDevice() {
 
     loadDeviceDebugFunctions();
     setDebugObjectName(VK_OBJECT_TYPE_DEVICE, reinterpret_cast<uint64_t>(device_), "VulkanContext device");
+}
+
+void VulkanContext::createAllocator() {
+    const VmaAllocatorCreateInfo createInfo{
+        .physicalDevice = physicalDevice_,
+        .device = device_,
+        .instance = instance_,
+        .vulkanApiVersion = VK_API_VERSION_1_3,
+    };
+
+    vulkan_utils::checkVk(
+        vmaCreateAllocator(&createInfo, &allocator_),
+        "vmaCreateAllocator");
 }
 
 void VulkanContext::loadDeviceDebugFunctions() {
@@ -346,7 +376,8 @@ bool VulkanContext::deviceSupportsRequiredFeatures(VkPhysicalDevice device) cons
     vkGetPhysicalDeviceFeatures2(device, &features);
     return vulkan12Features.timelineSemaphore == VK_TRUE &&
            vulkan13Features.dynamicRendering == VK_TRUE &&
-           vulkan13Features.synchronization2 == VK_TRUE;
+           vulkan13Features.synchronization2 == VK_TRUE &&
+           features.features.fillModeNonSolid == VK_TRUE;
 }
 
 uint32_t VulkanContext::findGraphicsPresentQueueFamily(VkPhysicalDevice device) const {

@@ -6,7 +6,7 @@
 #include "VulkanSwapchain.h"
 #include "VulkanUtils.h"
 #include "rendering/IRenderCommandRecorder.h"
-#include "rendering/TriangleCommandRecorder.h"
+#include "rendering/RubberDuckCommandRecorder.h"
 
 #include <cstdint>
 #include <exception>
@@ -36,11 +36,17 @@ int main() {
         // Swapchain 管理一组可以呈现到窗口上的图像，后续渲染会围绕它展开。
         VulkanSwapchain swapchain(vulkan, window.width(), window.height());
 
-        TriangleCommandRecorder triangleRecorder(vulkan, swapchain, vertexShader, fragmentShader);
-        IRenderCommandRecorder& renderCommandRecorder = triangleRecorder;
-
         // ImmediateCommands 只负责命令缓冲的申请、提交和回收，不关心里面录制什么。
         VulkanImmediateCommands commands(vulkan, "Main immediate commands");
+        RubberDuckCommandRecorder rubberDuckRecorder(
+            vulkan,
+            swapchain,
+            vertexShader,
+            fragmentShader,
+            commands,
+            RUBBER_DUCK_SCENE);
+        IRenderCommandRecorder& renderCommandRecorder = rubberDuckRecorder;
+
         VulkanFrameSync frameSync(vulkan, static_cast<uint32_t>(swapchain.images().size()));
 
         while (!window.shouldClose()) {

@@ -3,6 +3,8 @@
 #include <vulkan/vulkan.h>
 
 #include <cstdint>
+#include <span>
+#include <vector>
 
 class VulkanContext;
 class VulkanShaderModule;
@@ -10,10 +12,22 @@ class VulkanShaderModule;
 struct RenderPipelineDesc {
     const VulkanShaderModule* vertexShader = nullptr;
     const VulkanShaderModule* fragmentShader = nullptr;
+    std::vector<VkVertexInputBindingDescription> vertexBindings;
+    std::vector<VkVertexInputAttributeDescription> vertexAttributes;
     VkFormat colorFormat = VK_FORMAT_UNDEFINED;
+    VkFormat depthFormat = VK_FORMAT_UNDEFINED;
     VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     VkCullModeFlags cullMode = VK_CULL_MODE_NONE;
     VkFrontFace frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    VkPolygonMode polygonMode = VK_POLYGON_MODE_FILL;
+    bool depthTestEnabled = false;
+    bool depthWriteEnabled = false;
+    VkCompareOp depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+    bool depthBiasEnabled = false;
+    float depthBiasConstantFactor = 0.0f;
+    float depthBiasSlopeFactor = 0.0f;
+    std::vector<VkSpecializationMapEntry> specializationEntries;
+    std::vector<uint8_t> specializationData;
     const char* debugName = "Render pipeline";
 };
 

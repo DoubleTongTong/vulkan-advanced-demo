@@ -13,9 +13,16 @@ namespace {
 
 class VulkanGraphicsPipelineBuilder {
 public:
+    VulkanGraphicsPipelineBuilder& specializationInfo(const VkSpecializationInfo* specializationInfo) {
+        specializationInfo_ = specializationInfo;
+        return *this;
+    }
+
     VulkanGraphicsPipelineBuilder& shaderStage(const VkPipelineShaderStageCreateInfo& stage) {
         if (stage.module) {
-            shaderStages_[shaderStageCount_++] = stage;
+            VkPipelineShaderStageCreateInfo stageInfo = stage;
+            stageInfo.pSpecializationInfo = specializationInfo_;
+            shaderStages_[shaderStageCount_++] = stageInfo;
         }
         return *this;
     }
@@ -40,6 +47,11 @@ public:
         return *this;
     }
 
+    VulkanGraphicsPipelineBuilder& polygonMode(VkPolygonMode polygonMode) {
+        rasterization_.polygonMode = polygonMode;
+        return *this;
+    }
+
     VulkanGraphicsPipelineBuilder& colorAttachment(VkFormat format) {
         colorFormat_ = format;
         colorBlendAttachment_ = {
@@ -58,10 +70,45 @@ public:
         return *this;
     }
 
+    VulkanGraphicsPipelineBuilder& depthAttachment(VkFormat format) {
+        depthFormat_ = format;
+        return *this;
+    }
+
+    VulkanGraphicsPipelineBuilder& depthState(bool testEnabled, bool writeEnabled, VkCompareOp compareOp) {
+        depthStencil_.depthTestEnable = testEnabled ? VK_TRUE : VK_FALSE;
+        depthStencil_.depthWriteEnable = writeEnabled ? VK_TRUE : VK_FALSE;
+        depthStencil_.depthCompareOp = compareOp;
+        return *this;
+    }
+
+    VulkanGraphicsPipelineBuilder& depthBias(bool enabled, float constantFactor, float slopeFactor) {
+        rasterization_.depthBiasEnable = enabled ? VK_TRUE : VK_FALSE;
+        rasterization_.depthBiasConstantFactor = constantFactor;
+        rasterization_.depthBiasSlopeFactor = slopeFactor;
+        return *this;
+    }
+
+    VulkanGraphicsPipelineBuilder& vertexInput(
+        const std::vector<VkVertexInputBindingDescription>& bindings,
+        const std::vector<VkVertexInputAttributeDescription>& attributes) {
+        vertexBindings_ = bindings;
+        vertexAttributes_ = attributes;
+        return *this;
+    }
+
     VkResult build(
         VkDevice device,
         VkPipelineLayout layout,
         VkPipeline* outPipeline) const {
+        const VkPipelineVertexInputStateCreateInfo vertexInput{
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+            .vertexBindingDescriptionCount = static_cast<uint32_t>(vertexBindings_.size()),
+            .pVertexBindingDescriptions = vertexBindings_.empty() ? nullptr : vertexBindings_.data(),
+            .vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexAttributes_.size()),
+            .pVertexAttributeDescriptions = vertexAttributes_.empty() ? nullptr : vertexAttributes_.data(),
+        };
+
         const VkPipelineDynamicStateCreateInfo dynamicState{
             .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
             .dynamicStateCount = dynamicStateCount_,
@@ -88,6 +135,7 @@ public:
             .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
             .colorAttachmentCount = 1,
             .pColorAttachmentFormats = &colorFormat_,
+            .depthAttachmentFormat = depthFormat_,
         };
 
         const VkGraphicsPipelineCreateInfo createInfo{
@@ -95,7 +143,7 @@ public:
             .pNext = &renderingInfo,
             .stageCount = shaderStageCount_,
             .pStages = shaderStages_.data(),
-            .pVertexInputState = &vertexInput_,
+            .pVertexInputState = &vertexInput,
             .pInputAssemblyState = &inputAssembly_,
             .pViewportState = &viewportState,
             .pRasterizationState = &rasterization_,
@@ -118,9 +166,8 @@ private:
     std::array<VkDynamicState, 2> dynamicStates_{};
     uint32_t dynamicStateCount_ = 0;
 
-    VkPipelineVertexInputStateCreateInfo vertexInput_{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-    };
+    std::vector<VkVertexInputBindingDescription> vertexBindings_;
+    std::vector<VkVertexInputAttributeDescription> vertexAttributes_;
     VkPipelineInputAssemblyStateCreateInfo inputAssembly_{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
         .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
@@ -144,11 +191,13 @@ private:
         .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
         .depthTestEnable = VK_FALSE,
         .depthWriteEnable = VK_FALSE,
-        .depthCompareOp = VK_COMPARE_OP_ALWAYS,
+        .depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL,
         .stencilTestEnable = VK_FALSE,
     };
     VkPipelineColorBlendAttachmentState colorBlendAttachment_{};
     VkFormat colorFormat_ = VK_FORMAT_UNDEFINED;
+    VkFormat depthFormat_ = VK_FORMAT_UNDEFINED;
+    const VkSpecializationInfo* specializationInfo_ = nullptr;
 };
 
 VkPipelineShaderStageCreateInfo shaderStageInfo(
@@ -159,6 +208,7 @@ VkPipelineShaderStageCreateInfo shaderStageInfo(
         .stage = shader.vkStage(),
         .module = shader.handle(),
         .pName = entryPoint,
+        .pSpecializationInfo = nullptr,
     };
 }
 
@@ -263,14 +313,32 @@ void VulkanRenderPipeline::createPipelineLayout(const RenderPipelineDesc& desc) 
 }
 
 void VulkanRenderPipeline::createPipeline(const RenderPipelineDesc& desc) {
+    VkSpecializationInfo specializationInfo{};
+    const bool hasSpecializationInfo =
+        !desc.specializationEntries.empty() && !desc.specializationData.empty();
+    if (hasSpecializationInfo) {
+        specializationInfo = {
+            .mapEntryCount = static_cast<uint32_t>(desc.specializationEntries.size()),
+            .pMapEntries = desc.specializationEntries.data(),
+            .dataSize = desc.specializationData.size(),
+            .pData = desc.specializationData.data(),
+        };
+    }
+
     VulkanGraphicsPipelineBuilder builder;
     builder
+        .specializationInfo(hasSpecializationInfo ? &specializationInfo : nullptr)
         .dynamicState(VK_DYNAMIC_STATE_VIEWPORT)
         .dynamicState(VK_DYNAMIC_STATE_SCISSOR)
         .primitiveTopology(desc.topology)
         .cullMode(desc.cullMode)
         .frontFace(desc.frontFace)
+        .polygonMode(desc.polygonMode)
         .colorAttachment(desc.colorFormat)
+        .depthAttachment(desc.depthFormat)
+        .depthState(desc.depthTestEnabled, desc.depthWriteEnabled, desc.depthCompareOp)
+        .depthBias(desc.depthBiasEnabled, desc.depthBiasConstantFactor, desc.depthBiasSlopeFactor)
+        .vertexInput(desc.vertexBindings, desc.vertexAttributes)
         .shaderStage(shaderStageInfo(*desc.vertexShader, "main"))
         .shaderStage(shaderStageInfo(*desc.fragmentShader, "main"));
 
