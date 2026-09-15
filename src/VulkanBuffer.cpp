@@ -1,7 +1,6 @@
 #include "VulkanBuffer.h"
 
 #include "VulkanContext.h"
-#include "VulkanImmediateCommands.h"
 #include "VulkanUtils.h"
 
 #include <vk_mem_alloc.h>
@@ -12,15 +11,14 @@
 
 VulkanBuffer::VulkanBuffer(
     const VulkanContext& context,
-    const BufferDesc& desc,
-    VulkanImmediateCommands* uploadCommands)
+    const BufferDesc& desc)
     : context_(&context) {
     if (desc.size == 0) {
         throw std::runtime_error("Cannot create an empty Vulkan buffer.");
     }
 
     create(desc);
-    uploadInitialData(desc, uploadCommands);
+    uploadInitialData(desc);
 }
 
 VulkanBuffer::~VulkanBuffer() {
@@ -138,7 +136,7 @@ void VulkanBuffer::create(const BufferDesc& desc) {
     context_->setDebugObjectName(VK_OBJECT_TYPE_BUFFER, reinterpret_cast<uint64_t>(buffer_), desc.debugName);
 }
 
-void VulkanBuffer::uploadInitialData(const BufferDesc& desc, VulkanImmediateCommands* uploadCommands) {
+void VulkanBuffer::uploadInitialData(const BufferDesc& desc) {
     if (!desc.data) {
         return;
     }
@@ -148,36 +146,7 @@ void VulkanBuffer::uploadInitialData(const BufferDesc& desc, VulkanImmediateComm
         return;
     }
 
-    if (!uploadCommands) {
-        throw std::runtime_error("Uploading into a device-local Vulkan buffer requires upload commands.");
-    }
-
-    const BufferDesc stagingDesc{
-        .usage = BufferUsage_TransferSrc,
-        .storage = BufferStorage::HostVisible,
-        .size = desc.size,
-        .data = desc.data,
-        .debugName = "Staging upload buffer",
-    };
-    VulkanBuffer stagingBuffer(*context_, stagingDesc);
-    copyFrom(*uploadCommands, stagingBuffer, desc.size);
-}
-
-void VulkanBuffer::copyFrom(
-    VulkanImmediateCommands& commands,
-    const VulkanBuffer& source,
-    VkDeviceSize byteSize) {
-    const VulkanImmediateCommands::CommandBuffer& commandBuffer = commands.acquire();
-
-    const VkBufferCopy copyRegion{
-        .srcOffset = 0,
-        .dstOffset = 0,
-        .size = byteSize,
-    };
-    vkCmdCopyBuffer(commandBuffer.commandBuffer, source.handle(), buffer_, 1, &copyRegion);
-
-    const VulkanImmediateCommands::SubmitHandle submitHandle = commands.submit(commandBuffer);
-    commands.wait(submitHandle);
+    context_->uploadBuffer(*this, 0, static_cast<size_t>(desc.size), desc.data);
 }
 
 void VulkanBuffer::destroy() {

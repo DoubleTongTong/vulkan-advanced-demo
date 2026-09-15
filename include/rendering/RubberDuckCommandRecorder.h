@@ -10,7 +10,6 @@
 #include <filesystem>
 
 class VulkanContext;
-class VulkanImmediateCommands;
 class VulkanShaderModule;
 class VulkanSwapchain;
 struct VmaAllocation_T;
@@ -23,7 +22,6 @@ public:
         const VulkanSwapchain& swapchain,
         const VulkanShaderModule& vertexShader,
         const VulkanShaderModule& fragmentShader,
-        VulkanImmediateCommands& uploadCommands,
         const std::filesystem::path& scenePath);
     ~RubberDuckCommandRecorder();
 
@@ -35,7 +33,6 @@ private:
         const VulkanSwapchain& swapchain,
         const VulkanShaderModule& vertexShader,
         const VulkanShaderModule& fragmentShader,
-        VulkanImmediateCommands& uploadCommands,
         ModelMesh&& mesh);
 
     void createDepthAttachment();

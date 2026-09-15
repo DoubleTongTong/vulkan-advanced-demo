@@ -6,7 +6,6 @@
 #include <cstdint>
 
 class VulkanContext;
-class VulkanImmediateCommands;
 struct VmaAllocation_T;
 using VmaAllocation = VmaAllocation_T*;
 
@@ -36,8 +35,7 @@ class VulkanBuffer {
 public:
     VulkanBuffer(
         const VulkanContext& context,
-        const BufferDesc& desc,
-        VulkanImmediateCommands* uploadCommands = nullptr);
+        const BufferDesc& desc);
     ~VulkanBuffer();
 
     VulkanBuffer(const VulkanBuffer&) = delete;
@@ -56,8 +54,7 @@ public:
 
 private:
     void create(const BufferDesc& desc);
-    void uploadInitialData(const BufferDesc& desc, VulkanImmediateCommands* uploadCommands);
-    void copyFrom(VulkanImmediateCommands& commands, const VulkanBuffer& source, VkDeviceSize byteSize);
+    void uploadInitialData(const BufferDesc& desc);
     void destroy();
 
     VkBufferUsageFlags toVkUsageFlags(uint32_t usage, BufferStorage storage) const;

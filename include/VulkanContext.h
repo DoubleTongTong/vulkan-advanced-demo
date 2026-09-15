@@ -4,10 +4,13 @@
 
 #include <vulkan/vulkan.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <vector>
 
+class VulkanBuffer;
+class VulkanStagingUploader;
 struct GLFWwindow;
 struct VmaAllocator_T;
 using VmaAllocator = VmaAllocator_T*;
@@ -31,6 +34,15 @@ public:
     VkSemaphore createTimelineSemaphore(uint64_t initialValue = 0, const char* debugName = nullptr) const;
     VkFence createFence(bool signaled = false, const char* debugName = nullptr) const;
     void setDebugObjectName(VkObjectType type, uint64_t handle, const char* name) const;
+    void uploadBuffer(VulkanBuffer& destination, size_t dstOffset, size_t byteSize, const void* data) const;
+    void uploadImage2D(
+        VkImage image,
+        VkExtent2D extent,
+        const void* data,
+        size_t byteSize,
+        VkImageLayout oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        VkImageLayout finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        size_t bytesPerPixel = 4) const;
 
 private:
     static constexpr uint32_t InvalidQueueFamily = UINT32_MAX;
@@ -57,6 +69,7 @@ private:
     VmaAllocator allocator_ = nullptr;
     VkQueue graphicsQueue_ = VK_NULL_HANDLE;
     PFN_vkSetDebugUtilsObjectNameEXT setDebugUtilsObjectName_ = nullptr;
+    std::unique_ptr<VulkanStagingUploader> stagingUploader_;
     uint32_t graphicsQueueFamilyIndex_ = InvalidQueueFamily;
     bool validationEnabled_ = false;
     std::unique_ptr<VulkanDebugMessenger> debugMessenger_;

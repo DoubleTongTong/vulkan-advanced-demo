@@ -212,6 +212,7 @@ add_executable(vulkan_advanced_demo
     src/VulkanImmediateCommands.cpp
     src/VulkanRenderPipeline.cpp
     src/VulkanShaderModule.cpp
+    src/VulkanStagingUploader.cpp
     src/VulkanSwapchain.cpp
     src/VulkanUtils.cpp
 )

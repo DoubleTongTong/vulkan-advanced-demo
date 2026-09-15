@@ -43,7 +43,6 @@ int main() {
             swapchain,
             vertexShader,
             fragmentShader,
-            commands,
             RUBBER_DUCK_SCENE);
         IRenderCommandRecorder& renderCommandRecorder = rubberDuckRecorder;
 

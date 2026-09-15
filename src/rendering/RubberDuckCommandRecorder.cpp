@@ -1,6 +1,5 @@
 #include "rendering/RubberDuckCommandRecorder.h"
 
-#include "VulkanImmediateCommands.h"
 #include "VulkanShaderModule.h"
 #include "VulkanSwapchain.h"
 #include "VulkanContext.h"
@@ -58,14 +57,12 @@ RubberDuckCommandRecorder::RubberDuckCommandRecorder(
     const VulkanSwapchain& swapchain,
     const VulkanShaderModule& vertexShader,
     const VulkanShaderModule& fragmentShader,
-    VulkanImmediateCommands& uploadCommands,
     const std::filesystem::path& scenePath)
     : RubberDuckCommandRecorder(
           context,
           swapchain,
           vertexShader,
           fragmentShader,
-          uploadCommands,
           ModelLoader::loadFirstMesh(scenePath)) {
 }
 
@@ -74,7 +71,6 @@ RubberDuckCommandRecorder::RubberDuckCommandRecorder(
     const VulkanSwapchain& swapchain,
     const VulkanShaderModule& vertexShader,
     const VulkanShaderModule& fragmentShader,
-    VulkanImmediateCommands& uploadCommands,
     ModelMesh&& mesh)
     : context_(context),
       swapchain_(swapchain),
@@ -86,8 +82,7 @@ RubberDuckCommandRecorder::RubberDuckCommandRecorder(
               .size = sizeof(float) * mesh.positions.size(),
               .data = mesh.positions.data(),
               .debugName = "Rubber duck vertex buffer",
-          },
-          &uploadCommands),
+          }),
       indexBuffer_(
           context,
           {
@@ -96,8 +91,7 @@ RubberDuckCommandRecorder::RubberDuckCommandRecorder(
               .size = sizeof(uint32_t) * mesh.indices.size(),
               .data = mesh.indices.data(),
               .debugName = "Rubber duck index buffer",
-          },
-          &uploadCommands),
+          }),
       solidPipeline_(
           context,
           {

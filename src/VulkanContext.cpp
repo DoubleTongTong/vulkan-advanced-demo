@@ -1,5 +1,6 @@
 #include "VulkanContext.h"
 
+#include "VulkanStagingUploader.h"
 #include "VulkanUtils.h"
 
 #include <GLFW/glfw3.h>
@@ -49,10 +50,13 @@ VulkanContext::VulkanContext(GLFWwindow* window) {
     pickPhysicalDevice();
     createLogicalDevice();
     createAllocator();
+    stagingUploader_ = std::make_unique<VulkanStagingUploader>(*this);
 }
 
 VulkanContext::~VulkanContext() {
     // 销毁顺序要和创建顺序相反：device 依赖 instance/surface，必须先释放。
+    stagingUploader_.reset();
+
     if (allocator_) {
         vmaDestroyAllocator(allocator_);
     }
@@ -162,6 +166,25 @@ void VulkanContext::setDebugObjectName(VkObjectType type, uint64_t handle, const
     vulkan_utils::checkVk(
         setDebugUtilsObjectName_(device_, &nameInfo),
         "vkSetDebugUtilsObjectNameEXT");
+}
+
+void VulkanContext::uploadBuffer(
+    VulkanBuffer& destination,
+    size_t dstOffset,
+    size_t byteSize,
+    const void* data) const {
+    stagingUploader_->uploadBuffer(destination, dstOffset, byteSize, data);
+}
+
+void VulkanContext::uploadImage2D(
+    VkImage image,
+    VkExtent2D extent,
+    const void* data,
+    size_t byteSize,
+    VkImageLayout oldLayout,
+    VkImageLayout finalLayout,
+    size_t bytesPerPixel) const {
+    stagingUploader_->uploadImage2D(image, extent, data, byteSize, oldLayout, finalLayout, bytesPerPixel);
 }
 
 void VulkanContext::createInstance() {
