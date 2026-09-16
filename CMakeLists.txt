@@ -120,6 +120,7 @@ set(BC7_DEMO_INPUT_TEXTURE
 )
 
 set(RUBBER_DUCK_SCENE "${CMAKE_SOURCE_DIR}/assets/rubber_duck/scene.gltf")
+set(RUBBER_DUCK_TEXTURE "${CMAKE_SOURCE_DIR}/assets/rubber_duck/textures/Duck_baseColor.png")
 
 if(NOT EXISTS "${BC7_DEMO_INPUT_TEXTURE}")
     message(FATAL_ERROR
@@ -203,8 +204,10 @@ add_executable(vulkan_advanced_demo
     src/GlfwWindow.cpp
     src/ModelLoader.cpp
     src/rendering/RubberDuckCommandRecorder.cpp
+    src/rendering/TexturedDuckCommandRecorder.cpp
     src/rendering/TriangleCommandRecorder.cpp
     src/VmaImplementation.cpp
+    src/VulkanBindlessDescriptorSet.cpp
     src/VulkanBuffer.cpp
     src/VulkanContext.cpp
     src/VulkanDebugMessenger.cpp
@@ -214,13 +217,15 @@ add_executable(vulkan_advanced_demo
     src/VulkanShaderModule.cpp
     src/VulkanStagingUploader.cpp
     src/VulkanSwapchain.cpp
+    src/VulkanTexture2D.cpp
     src/VulkanUtils.cpp
 )
 
 target_compile_definitions(vulkan_advanced_demo
     PRIVATE
-        APP_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/rubber_duck"
+        APP_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/textured_duck"
         RUBBER_DUCK_SCENE="${RUBBER_DUCK_SCENE}"
+        RUBBER_DUCK_TEXTURE="${RUBBER_DUCK_TEXTURE}"
 )
 
 target_include_directories(vulkan_advanced_demo
@@ -239,6 +244,7 @@ target_link_libraries(vulkan_advanced_demo
         glfw
         assimp
         glm::glm
+        image_processor
         shader_compiler
         Vulkan::Vulkan
 )

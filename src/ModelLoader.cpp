@@ -36,6 +36,7 @@ ModelMesh ModelLoader::loadFirstMesh(const std::filesystem::path& scenePath) {
 
     ModelMesh data;
     data.positions.resize(static_cast<size_t>(mesh->mNumVertices) * 3u);
+    data.texcoords.resize(static_cast<size_t>(mesh->mNumVertices) * 2u);
     data.indices.resize(static_cast<size_t>(mesh->mNumFaces) * 3u);
     glm::vec3 minBounds(std::numeric_limits<float>::max());
     glm::vec3 maxBounds(std::numeric_limits<float>::lowest());
@@ -46,6 +47,16 @@ ModelMesh ModelLoader::loadFirstMesh(const std::filesystem::path& scenePath) {
         data.positions[offset + 0u] = vertex.x;
         data.positions[offset + 1u] = vertex.y;
         data.positions[offset + 2u] = vertex.z;
+
+        const size_t texcoordOffset = static_cast<size_t>(i) * 2u;
+        if (mesh->HasTextureCoords(0)) {
+            const aiVector3D& texcoord = mesh->mTextureCoords[0][i];
+            data.texcoords[texcoordOffset + 0u] = texcoord.x;
+            data.texcoords[texcoordOffset + 1u] = texcoord.y;
+        } else {
+            data.texcoords[texcoordOffset + 0u] = 0.0f;
+            data.texcoords[texcoordOffset + 1u] = 0.0f;
+        }
 
         minBounds.x = std::min(minBounds.x, vertex.x);
         minBounds.y = std::min(minBounds.y, vertex.y);

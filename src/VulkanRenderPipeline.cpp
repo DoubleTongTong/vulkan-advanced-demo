@@ -299,6 +299,8 @@ void VulkanRenderPipeline::createPipelineLayout(const RenderPipelineDesc& desc) 
 
     const VkPipelineLayoutCreateInfo createInfo{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .setLayoutCount = static_cast<uint32_t>(desc.descriptorSetLayouts.size()),
+        .pSetLayouts = desc.descriptorSetLayouts.empty() ? nullptr : desc.descriptorSetLayouts.data(),
         .pushConstantRangeCount = pushConstantSize_ > 0 ? 1u : 0u,
         .pPushConstantRanges = pushConstantSize_ > 0 ? &pushConstantRange : nullptr,
     };

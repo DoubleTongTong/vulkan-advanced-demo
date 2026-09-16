@@ -26,6 +26,7 @@ struct RenderPipelineDesc {
     bool depthBiasEnabled = false;
     float depthBiasConstantFactor = 0.0f;
     float depthBiasSlopeFactor = 0.0f;
+    std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
     std::vector<VkSpecializationMapEntry> specializationEntries;
     std::vector<uint8_t> specializationData;
     const char* debugName = "Render pipeline";

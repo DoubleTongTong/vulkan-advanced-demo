@@ -284,6 +284,12 @@ void VulkanContext::createLogicalDevice() {
     VkPhysicalDeviceVulkan12Features vulkan12Features{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
         .pNext = &vulkan13Features,
+        .shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
+        .descriptorBindingSampledImageUpdateAfterBind = VK_TRUE,
+        .descriptorBindingUpdateUnusedWhilePending = VK_TRUE,
+        .descriptorBindingPartiallyBound = VK_TRUE,
+        .descriptorBindingVariableDescriptorCount = VK_TRUE,
+        .runtimeDescriptorArray = VK_TRUE,
         .timelineSemaphore = VK_TRUE,
     };
     VkPhysicalDeviceFeatures2 features{
@@ -398,6 +404,12 @@ bool VulkanContext::deviceSupportsRequiredFeatures(VkPhysicalDevice device) cons
 
     vkGetPhysicalDeviceFeatures2(device, &features);
     return vulkan12Features.timelineSemaphore == VK_TRUE &&
+           vulkan12Features.shaderSampledImageArrayNonUniformIndexing == VK_TRUE &&
+           vulkan12Features.descriptorBindingSampledImageUpdateAfterBind == VK_TRUE &&
+           vulkan12Features.descriptorBindingUpdateUnusedWhilePending == VK_TRUE &&
+           vulkan12Features.descriptorBindingPartiallyBound == VK_TRUE &&
+           vulkan12Features.descriptorBindingVariableDescriptorCount == VK_TRUE &&
+           vulkan12Features.runtimeDescriptorArray == VK_TRUE &&
            vulkan13Features.dynamicRendering == VK_TRUE &&
            vulkan13Features.synchronization2 == VK_TRUE &&
            features.features.fillModeNonSolid == VK_TRUE;

@@ -6,6 +6,7 @@
 
 struct ModelMesh {
     std::vector<float> positions;
+    std::vector<float> texcoords;
     std::vector<uint32_t> indices;
     float center[3] = {};
     float radius = 1.0f;

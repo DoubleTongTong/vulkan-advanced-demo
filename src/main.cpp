@@ -6,7 +6,7 @@
 #include "VulkanSwapchain.h"
 #include "VulkanUtils.h"
 #include "rendering/IRenderCommandRecorder.h"
-#include "rendering/RubberDuckCommandRecorder.h"
+#include "rendering/TexturedDuckCommandRecorder.h"
 
 #include <cstdint>
 #include <exception>
@@ -38,13 +38,14 @@ int main() {
 
         // ImmediateCommands 只负责命令缓冲的申请、提交和回收，不关心里面录制什么。
         VulkanImmediateCommands commands(vulkan, "Main immediate commands");
-        RubberDuckCommandRecorder rubberDuckRecorder(
+        TexturedDuckCommandRecorder texturedDuckRecorder(
             vulkan,
             swapchain,
             vertexShader,
             fragmentShader,
-            RUBBER_DUCK_SCENE);
-        IRenderCommandRecorder& renderCommandRecorder = rubberDuckRecorder;
+            RUBBER_DUCK_SCENE,
+            RUBBER_DUCK_TEXTURE);
+        IRenderCommandRecorder& renderCommandRecorder = texturedDuckRecorder;
 
         VulkanFrameSync frameSync(vulkan, static_cast<uint32_t>(swapchain.images().size()));
 
