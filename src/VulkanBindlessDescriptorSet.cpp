@@ -22,6 +22,7 @@ VulkanBindlessDescriptorSet::VulkanBindlessDescriptorSet(
         throw std::runtime_error("Bindless descriptor table sizes must be greater than zero.");
     }
 
+    validateLimits();
     createLayout(debugName);
     createPoolAndSet(debugName);
 }
@@ -84,7 +85,7 @@ void VulkanBindlessDescriptorSet::fillSamplers(VkSampler sampler) {
     const VkWriteDescriptorSet write{
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         .dstSet = set_,
-        .dstBinding = 0,
+        .dstBinding = SamplersBinding,
         .dstArrayElement = 0,
         .descriptorCount = maxSamplers_,
         .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
@@ -104,7 +105,7 @@ void VulkanBindlessDescriptorSet::writeSampler(uint32_t samplerIndex, VkSampler 
     const VkWriteDescriptorSet write{
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         .dstSet = set_,
-        .dstBinding = 0,
+        .dstBinding = SamplersBinding,
         .dstArrayElement = samplerIndex,
         .descriptorCount = 1,
         .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
@@ -125,7 +126,7 @@ void VulkanBindlessDescriptorSet::writeTexture2D(uint32_t textureIndex, const Vu
     const VkWriteDescriptorSet write{
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         .dstSet = set_,
-        .dstBinding = 1,
+        .dstBinding = Textures2DBinding,
         .dstArrayElement = textureIndex,
         .descriptorCount = 1,
         .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
@@ -149,19 +150,41 @@ void VulkanBindlessDescriptorSet::bind(
         nullptr);
 }
 
+void VulkanBindlessDescriptorSet::validateLimits() const {
+    const VulkanDescriptorIndexingLimits limits = context_->descriptorIndexingLimits();
+
+    if (maxTextures_ > limits.maxUpdateAfterBindSampledImages) {
+        throw std::runtime_error(
+            "Bindless texture capacity " + std::to_string(maxTextures_) +
+            " exceeds maxDescriptorSetUpdateAfterBindSampledImages " +
+            std::to_string(limits.maxUpdateAfterBindSampledImages) + ".");
+    }
+
+    if (maxSamplers_ > limits.maxUpdateAfterBindSamplers) {
+        throw std::runtime_error(
+            "Bindless sampler capacity " + std::to_string(maxSamplers_) +
+            " exceeds maxDescriptorSetUpdateAfterBindSamplers " +
+            std::to_string(limits.maxUpdateAfterBindSamplers) + ".");
+    }
+}
+
 void VulkanBindlessDescriptorSet::createLayout(const char* debugName) {
+    constexpr VkShaderStageFlags ShaderStages =
+        VK_SHADER_STAGE_VERTEX_BIT |
+        VK_SHADER_STAGE_FRAGMENT_BIT;
+
     const VkDescriptorSetLayoutBinding bindings[] = {
         {
-            .binding = 0,
+            .binding = SamplersBinding,
             .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
             .descriptorCount = maxSamplers_,
-            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            .stageFlags = ShaderStages,
         },
         {
-            .binding = 1,
+            .binding = Textures2DBinding,
             .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
             .descriptorCount = maxTextures_,
-            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            .stageFlags = ShaderStages,
         },
     };
     const VkDescriptorBindingFlags bindingFlags[] = {

@@ -104,6 +104,22 @@ uint32_t VulkanContext::graphicsQueueFamilyIndex() const {
     return graphicsQueueFamilyIndex_;
 }
 
+VulkanDescriptorIndexingLimits VulkanContext::descriptorIndexingLimits() const {
+    VkPhysicalDeviceVulkan12Properties vulkan12Properties{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_PROPERTIES,
+    };
+    VkPhysicalDeviceProperties2 properties{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+        .pNext = &vulkan12Properties,
+    };
+    vkGetPhysicalDeviceProperties2(physicalDevice_, &properties);
+
+    return {
+        .maxUpdateAfterBindSampledImages = vulkan12Properties.maxDescriptorSetUpdateAfterBindSampledImages,
+        .maxUpdateAfterBindSamplers = vulkan12Properties.maxDescriptorSetUpdateAfterBindSamplers,
+    };
+}
+
 VkSemaphore VulkanContext::createSemaphore(const char* debugName) const {
     const VkSemaphoreCreateInfo createInfo{
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,

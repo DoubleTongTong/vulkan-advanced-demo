@@ -15,6 +15,11 @@ struct GLFWwindow;
 struct VmaAllocator_T;
 using VmaAllocator = VmaAllocator_T*;
 
+struct VulkanDescriptorIndexingLimits {
+    uint32_t maxUpdateAfterBindSampledImages = 0;
+    uint32_t maxUpdateAfterBindSamplers = 0;
+};
+
 class VulkanContext {
 public:
     explicit VulkanContext(GLFWwindow* window);
@@ -30,6 +35,7 @@ public:
     VmaAllocator allocator() const;
     VkQueue graphicsQueue() const;
     uint32_t graphicsQueueFamilyIndex() const;
+    VulkanDescriptorIndexingLimits descriptorIndexingLimits() const;
     VkSemaphore createSemaphore(const char* debugName = nullptr) const;
     VkSemaphore createTimelineSemaphore(uint64_t initialValue = 0, const char* debugName = nullptr) const;
     VkFence createFence(bool signaled = false, const char* debugName = nullptr) const;

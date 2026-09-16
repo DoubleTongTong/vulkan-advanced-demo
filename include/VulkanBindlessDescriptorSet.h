@@ -11,6 +11,9 @@ class VulkanTexture2D;
 // binding 0 保存 sampler table，binding 1 保存 sampled image runtime array。
 class VulkanBindlessDescriptorSet {
 public:
+    static constexpr uint32_t SamplersBinding = 0;
+    static constexpr uint32_t Textures2DBinding = 1;
+
     VulkanBindlessDescriptorSet(
         const VulkanContext& context,
         uint32_t maxTextures,
@@ -35,6 +38,7 @@ public:
     void bind(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout, uint32_t setIndex = 0) const;
 
 private:
+    void validateLimits() const;
     void createLayout(const char* debugName);
     void createPoolAndSet(const char* debugName);
     void destroy();
