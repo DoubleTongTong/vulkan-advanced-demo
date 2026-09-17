@@ -70,6 +70,15 @@ public:
         return *this;
     }
 
+    VulkanGraphicsPipelineBuilder& alphaBlend(bool enabled) {
+        colorBlendAttachment_.blendEnable = enabled ? VK_TRUE : VK_FALSE;
+        colorBlendAttachment_.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        colorBlendAttachment_.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        colorBlendAttachment_.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        colorBlendAttachment_.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        return *this;
+    }
+
     VulkanGraphicsPipelineBuilder& depthAttachment(VkFormat format) {
         depthFormat_ = format;
         return *this;
@@ -337,6 +346,7 @@ void VulkanRenderPipeline::createPipeline(const RenderPipelineDesc& desc) {
         .frontFace(desc.frontFace)
         .polygonMode(desc.polygonMode)
         .colorAttachment(desc.colorFormat)
+        .alphaBlend(desc.blendEnabled)
         .depthAttachment(desc.depthFormat)
         .depthState(desc.depthTestEnabled, desc.depthWriteEnabled, desc.depthCompareOp)
         .depthBias(desc.depthBiasEnabled, desc.depthBiasConstantFactor, desc.depthBiasSlopeFactor)

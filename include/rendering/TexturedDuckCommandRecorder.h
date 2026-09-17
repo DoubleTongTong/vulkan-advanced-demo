@@ -30,6 +30,7 @@ public:
     ~TexturedDuckCommandRecorder();
 
     void record(VkCommandBuffer commandBuffer, uint32_t imageIndex) override;
+    const VulkanTexture2D& texture() const { return texture_; }
 
 private:
     struct Vertex {

@@ -22,6 +22,7 @@ struct RenderPipelineDesc {
     VkPolygonMode polygonMode = VK_POLYGON_MODE_FILL;
     bool depthTestEnabled = false;
     bool depthWriteEnabled = false;
+    bool blendEnabled = false;
     VkCompareOp depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
     bool depthBiasEnabled = false;
     float depthBiasConstantFactor = 0.0f;

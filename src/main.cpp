@@ -2,6 +2,7 @@
 #include "VulkanContext.h"
 #include "VulkanFrameSync.h"
 #include "VulkanImmediateCommands.h"
+#include "VulkanImGuiOverlay.h"
 #include "VulkanShaderModule.h"
 #include "VulkanSwapchain.h"
 #include "VulkanUtils.h"
@@ -46,6 +47,7 @@ int main() {
             RUBBER_DUCK_SCENE,
             RUBBER_DUCK_TEXTURE);
         IRenderCommandRecorder& renderCommandRecorder = texturedDuckRecorder;
+        VulkanImGuiOverlay imgui(vulkan, swapchain, window.handle(), texturedDuckRecorder.texture());
 
         VulkanFrameSync frameSync(vulkan, static_cast<uint32_t>(swapchain.images().size()));
 
@@ -70,6 +72,7 @@ int main() {
             commands.setSubmitWaitSemaphore(frame.imageAvailable);
             const VulkanImmediateCommands::CommandBuffer& commandBuffer = commands.acquire();
             renderCommandRecorder.record(commandBuffer.commandBuffer, acquiredImage.imageIndex);
+            imgui.record(commandBuffer.commandBuffer, acquiredImage.imageIndex, frame.frameIndex);
             commands.setSubmitSignalSemaphore(renderFinished);
             const VulkanImmediateCommands::SubmitHandle submitHandle = commands.submit(commandBuffer);
             frameSync.markSubmitted(frame, submitHandle);

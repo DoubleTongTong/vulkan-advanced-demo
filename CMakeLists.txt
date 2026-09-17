@@ -113,6 +113,12 @@ FetchContent_Declare(
     GIT_TAG 1.0.1
 )
 
+FetchContent_Declare(
+    imgui
+    GIT_REPOSITORY https://github.com/ocornut/imgui.git
+    GIT_TAG v1.91.9b
+)
+
 # BC7 demo 使用 Bistro 数据集中的一张真实纹理做验证。
 # assets/ 默认只提交 README；如果没有下载数据集，配置阶段就给出明确提示。
 set(BC7_DEMO_INPUT_TEXTURE
@@ -139,6 +145,18 @@ FetchContent_MakeAvailable(stb)
 FetchContent_MakeAvailable(vma)
 FetchContent_MakeAvailable(assimp)
 FetchContent_MakeAvailable(glm)
+FetchContent_MakeAvailable(imgui)
+
+add_library(imgui_glfw STATIC
+    ${imgui_SOURCE_DIR}/imgui.cpp
+    ${imgui_SOURCE_DIR}/imgui_draw.cpp
+    ${imgui_SOURCE_DIR}/imgui_tables.cpp
+    ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+    ${imgui_SOURCE_DIR}/imgui_demo.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
+)
+target_include_directories(imgui_glfw PUBLIC ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+target_link_libraries(imgui_glfw PUBLIC glfw)
 
 add_library(shader_compiler
     src/ShaderCompiler.cpp
@@ -213,6 +231,7 @@ add_executable(vulkan_advanced_demo
     src/VulkanDebugMessenger.cpp
     src/VulkanFrameSync.cpp
     src/VulkanImmediateCommands.cpp
+    src/VulkanImGuiOverlay.cpp
     src/VulkanRenderPipeline.cpp
     src/VulkanShaderModule.cpp
     src/VulkanStagingUploader.cpp
@@ -226,6 +245,7 @@ target_compile_definitions(vulkan_advanced_demo
         APP_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/textured_duck"
         RUBBER_DUCK_SCENE="${RUBBER_DUCK_SCENE}"
         RUBBER_DUCK_TEXTURE="${RUBBER_DUCK_TEXTURE}"
+        APP_IMGUI_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/imgui"
 )
 
 target_include_directories(vulkan_advanced_demo
@@ -245,6 +265,7 @@ target_link_libraries(vulkan_advanced_demo
         assimp
         glm::glm
         image_processor
+        imgui_glfw
         shader_compiler
         Vulkan::Vulkan
 )
