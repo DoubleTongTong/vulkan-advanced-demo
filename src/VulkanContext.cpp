@@ -1,6 +1,7 @@
 #include "VulkanContext.h"
 
 #include "VulkanStagingUploader.h"
+#include "VulkanProfiler.h"
 #include "VulkanUtils.h"
 
 #include <GLFW/glfw3.h>
@@ -40,6 +41,7 @@ std::string deviceTypeName(VkPhysicalDeviceType type) {
 } // namespace
 
 VulkanContext::VulkanContext(GLFWwindow* window) {
+    APP_PROFILE_FUNCTION();
     // Vulkan 的启动顺序很固定：先 instance，再创建窗口 surface，
     // 然后挂上调试回调，选择物理显卡，最后基于它创建逻辑设备和队列。
     createInstance();
@@ -50,12 +52,14 @@ VulkanContext::VulkanContext(GLFWwindow* window) {
     pickPhysicalDevice();
     createLogicalDevice();
     createAllocator();
+    profiler_ = std::make_unique<VulkanProfiler>(*this);
     stagingUploader_ = std::make_unique<VulkanStagingUploader>(*this);
 }
 
 VulkanContext::~VulkanContext() {
     // 销毁顺序要和创建顺序相反：device 依赖 instance/surface，必须先释放。
     stagingUploader_.reset();
+    profiler_.reset();
 
     if (allocator_) {
         vmaDestroyAllocator(allocator_);
@@ -102,6 +106,14 @@ VkQueue VulkanContext::graphicsQueue() const {
 
 uint32_t VulkanContext::graphicsQueueFamilyIndex() const {
     return graphicsQueueFamilyIndex_;
+}
+
+bool VulkanContext::calibratedTimestampsEnabled() const {
+    return calibratedTimestampsEnabled_;
+}
+
+const VulkanProfiler& VulkanContext::profiler() const {
+    return *profiler_;
 }
 
 VulkanDescriptorIndexingLimits VulkanContext::descriptorIndexingLimits() const {
@@ -250,6 +262,7 @@ void VulkanContext::createSurface(GLFWwindow* window) {
 }
 
 void VulkanContext::pickPhysicalDevice() {
+    APP_PROFILE_FUNCTION();
     uint32_t deviceCount = 0;
     vulkan_utils::checkVk(vkEnumeratePhysicalDevices(instance_, &deviceCount, nullptr), "vkEnumeratePhysicalDevices");
 
@@ -281,7 +294,25 @@ void VulkanContext::pickPhysicalDevice() {
 }
 
 void VulkanContext::createLogicalDevice() {
+    APP_PROFILE_FUNCTION();
     const float queuePriority = 1.0f;
+
+#if APP_ENABLE_TRACY
+    uint32_t extensionCount = 0;
+    vulkan_utils::checkVk(vkEnumerateDeviceExtensionProperties(
+        physicalDevice_, nullptr, &extensionCount, nullptr), "vkEnumerateDeviceExtensionProperties");
+    std::vector<VkExtensionProperties> availableExtensions(extensionCount);
+    vulkan_utils::checkVk(vkEnumerateDeviceExtensionProperties(
+        physicalDevice_, nullptr, &extensionCount, availableExtensions.data()), "vkEnumerateDeviceExtensionProperties");
+    calibratedTimestampsEnabled_ = std::any_of(availableExtensions.begin(), availableExtensions.end(),
+        [](const VkExtensionProperties& extension) {
+            return std::strcmp(extension.extensionName, VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME) == 0;
+        });
+#endif
+    std::vector<const char*> enabledExtensions(std::begin(RequiredDeviceExtensions), std::end(RequiredDeviceExtensions));
+    if (calibratedTimestampsEnabled_) {
+        enabledExtensions.push_back(VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME);
+    }
 
     // 当前阶段只要一条 graphics+present 队列即可。
     // 后面加入异步 compute/transfer 时，再拆更多 queue family。
@@ -321,8 +352,8 @@ void VulkanContext::createLogicalDevice() {
         .pNext = &features,
         .queueCreateInfoCount = 1,
         .pQueueCreateInfos = &queueCreateInfo,
-        .enabledExtensionCount = static_cast<uint32_t>(std::size(RequiredDeviceExtensions)),
-        .ppEnabledExtensionNames = RequiredDeviceExtensions,
+        .enabledExtensionCount = static_cast<uint32_t>(enabledExtensions.size()),
+        .ppEnabledExtensionNames = enabledExtensions.data(),
     };
 
     vulkan_utils::checkVk(vkCreateDevice(physicalDevice_, &createInfo, nullptr, &device_), "vkCreateDevice");

@@ -3,6 +3,7 @@
 #include "Image.h"
 #include "VulkanBindlessDescriptorSet.h"
 #include "VulkanContext.h"
+#include "VulkanProfiler.h"
 #include "VulkanRenderPipeline.h"
 #include "VulkanShaderModule.h"
 #include "VulkanSwapchain.h"
@@ -109,6 +110,7 @@ void VulkanImGuiOverlay::createPipeline() {
 }
 
 void VulkanImGuiOverlay::uploadDrawData(uint32_t frameIndex) {
+    APP_PROFILE_FUNCTION();
     const ImDrawData* drawData = ImGui::GetDrawData();
     if (drawData->TotalVtxCount == 0) {
         return;
@@ -167,6 +169,7 @@ void VulkanImGuiOverlay::bindDrawState(
 }
 
 void VulkanImGuiOverlay::record(VkCommandBuffer commandBuffer, uint32_t imageIndex, uint32_t frameIndex) {
+    APP_PROFILE_FUNCTION();
     // 输入已在主循环中轮询；这里统一完成 ImGui 界面和 Vulkan 绘制命令。
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
@@ -182,6 +185,7 @@ void VulkanImGuiOverlay::record(VkCommandBuffer commandBuffer, uint32_t imageInd
         return;
     }
     uploadDrawData(frameIndex);
+    APP_PROFILE_GPU_ZONE(context_, commandBuffer, "ImGui overlay");
 
     const VkImage image = swapchain_.images().at(imageIndex);
     // 场景已经画好且图像处于 PRESENT；切回颜色附件，并用 LOAD 保留原画面。

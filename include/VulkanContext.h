@@ -11,6 +11,7 @@
 
 class VulkanBuffer;
 class VulkanStagingUploader;
+class VulkanProfiler;
 struct GLFWwindow;
 struct VmaAllocator_T;
 using VmaAllocator = VmaAllocator_T*;
@@ -35,6 +36,8 @@ public:
     VmaAllocator allocator() const;
     VkQueue graphicsQueue() const;
     uint32_t graphicsQueueFamilyIndex() const;
+    bool calibratedTimestampsEnabled() const;
+    const VulkanProfiler& profiler() const;
     VulkanDescriptorIndexingLimits descriptorIndexingLimits() const;
     VkSemaphore createSemaphore(const char* debugName = nullptr) const;
     VkSemaphore createTimelineSemaphore(uint64_t initialValue = 0, const char* debugName = nullptr) const;
@@ -76,7 +79,9 @@ private:
     VkQueue graphicsQueue_ = VK_NULL_HANDLE;
     PFN_vkSetDebugUtilsObjectNameEXT setDebugUtilsObjectName_ = nullptr;
     std::unique_ptr<VulkanStagingUploader> stagingUploader_;
+    std::unique_ptr<VulkanProfiler> profiler_;
     uint32_t graphicsQueueFamilyIndex_ = InvalidQueueFamily;
+    bool calibratedTimestampsEnabled_ = false;
     bool validationEnabled_ = false;
     std::unique_ptr<VulkanDebugMessenger> debugMessenger_;
 };

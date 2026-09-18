@@ -14,6 +14,8 @@ include(FetchContent)
 
 find_package(Vulkan REQUIRED)
 
+option(APP_ENABLE_TRACY "Enable Tracy CPU and Vulkan GPU profiling" ON)
+
 # 把 FetchContent 拉下来的第三方代码统一放在项目根目录的 externals/。
 # 这样目录结构更直观，也方便你以后快速确认依赖来自哪里。
 set(FETCHCONTENT_BASE_DIR ${CMAKE_SOURCE_DIR}/externals)
@@ -119,6 +121,15 @@ FetchContent_Declare(
     GIT_TAG v1.91.9b
 )
 
+if(APP_ENABLE_TRACY)
+    set(TRACY_ENABLE ON CACHE BOOL "" FORCE)
+    FetchContent_Declare(
+        tracy
+        GIT_REPOSITORY https://github.com/wolfpld/tracy.git
+        GIT_TAG v0.11.1
+    )
+endif()
+
 # BC7 demo 使用 Bistro 数据集中的一张真实纹理做验证。
 # assets/ 默认只提交 README；如果没有下载数据集，配置阶段就给出明确提示。
 set(BC7_DEMO_INPUT_TEXTURE
@@ -146,6 +157,9 @@ FetchContent_MakeAvailable(vma)
 FetchContent_MakeAvailable(assimp)
 FetchContent_MakeAvailable(glm)
 FetchContent_MakeAvailable(imgui)
+if(APP_ENABLE_TRACY)
+    FetchContent_MakeAvailable(tracy)
+endif()
 
 add_library(imgui_glfw STATIC
     ${imgui_SOURCE_DIR}/imgui.cpp
@@ -232,6 +246,7 @@ add_executable(vulkan_advanced_demo
     src/VulkanFrameSync.cpp
     src/VulkanImmediateCommands.cpp
     src/VulkanImGuiOverlay.cpp
+    src/VulkanProfiler.cpp
     src/VulkanRenderPipeline.cpp
     src/VulkanShaderModule.cpp
     src/VulkanStagingUploader.cpp
@@ -246,6 +261,7 @@ target_compile_definitions(vulkan_advanced_demo
         RUBBER_DUCK_SCENE="${RUBBER_DUCK_SCENE}"
         RUBBER_DUCK_TEXTURE="${RUBBER_DUCK_TEXTURE}"
         APP_IMGUI_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/imgui"
+        APP_ENABLE_TRACY=$<BOOL:${APP_ENABLE_TRACY}>
 )
 
 target_include_directories(vulkan_advanced_demo
@@ -269,6 +285,10 @@ target_link_libraries(vulkan_advanced_demo
         shader_compiler
         Vulkan::Vulkan
 )
+
+if(APP_ENABLE_TRACY)
+    target_link_libraries(vulkan_advanced_demo PRIVATE Tracy::TracyClient)
+endif()
 
 add_executable(taskflow_demo
     demos/taskflow/TaskflowDemo.cpp

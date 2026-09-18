@@ -3,6 +3,7 @@
 #include "VulkanFrameSync.h"
 #include "VulkanImmediateCommands.h"
 #include "VulkanImGuiOverlay.h"
+#include "VulkanProfiler.h"
 #include "VulkanShaderModule.h"
 #include "VulkanSwapchain.h"
 #include "VulkanUtils.h"
@@ -16,6 +17,7 @@
 
 int main() {
     try {
+        APP_PROFILE_THREAD("Main thread");
         // 传入 1280x800 创建普通窗口；如果想铺满工作区，可以改成 0, 0。
         GlfwWindow window("GLFW Vulkan Demo", 1280, 800);
 
@@ -52,6 +54,8 @@ int main() {
         VulkanFrameSync frameSync(vulkan, static_cast<uint32_t>(swapchain.images().size()));
 
         while (!window.shouldClose()) {
+            APP_PROFILE_FRAME();
+            APP_PROFILE_SCOPE("Frame CPU");
             window.pollEvents();
 
             const VulkanFrameSync::Frame frame = frameSync.currentFrame();

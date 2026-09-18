@@ -1,6 +1,7 @@
 #include "VulkanImmediateCommands.h"
 
 #include "VulkanContext.h"
+#include "VulkanProfiler.h"
 #include "VulkanUtils.h"
 
 #include <limits>
@@ -46,6 +47,7 @@ VulkanImmediateCommands::~VulkanImmediateCommands() {
 }
 
 const VulkanImmediateCommands::CommandBuffer& VulkanImmediateCommands::acquire() {
+    APP_PROFILE_FUNCTION();
     while (availableCommandBufferCount_ == 0) {
         purge();
 
@@ -84,6 +86,9 @@ const VulkanImmediateCommands::CommandBuffer& VulkanImmediateCommands::acquire()
 }
 
 VulkanImmediateCommands::SubmitHandle VulkanImmediateCommands::submit(const CommandBuffer& commandBuffer) {
+    APP_PROFILE_FUNCTION();
+    // 查询结果在提交前写入同一 command buffer，随后随这次提交一起执行。
+    context_.profiler().collect(commandBuffer.commandBuffer);
     vulkan_utils::checkVk(vkEndCommandBuffer(commandBuffer.commandBuffer), "vkEndCommandBuffer");
 
     VkSemaphoreSubmitInfo waitSemaphores[2]{};
@@ -193,6 +198,7 @@ bool VulkanImmediateCommands::isReady(SubmitHandle handle) const {
 }
 
 void VulkanImmediateCommands::wait(SubmitHandle handle) {
+    APP_PROFILE_FUNCTION();
     if (handle.empty()) {
         vulkan_utils::checkVk(vkDeviceWaitIdle(context_.device()), "vkDeviceWaitIdle");
         return;

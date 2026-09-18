@@ -3,6 +3,7 @@
 #include "ImageProcessor.h"
 #include "ModelLoader.h"
 #include "VulkanContext.h"
+#include "VulkanProfiler.h"
 #include "VulkanShaderModule.h"
 #include "VulkanSwapchain.h"
 #include "VulkanUtils.h"
@@ -167,6 +168,8 @@ void TexturedDuckCommandRecorder::createPipeline(
 }
 
 void TexturedDuckCommandRecorder::record(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
+    APP_PROFILE_FUNCTION();
+    APP_PROFILE_GPU_ZONE(context_, commandBuffer, "Textured duck");
     const VkImage image = swapchain_.images()[imageIndex];
     const VkImageView imageView = swapchain_.imageViews()[imageIndex];
     const VkExtent2D extent = swapchain_.extent();

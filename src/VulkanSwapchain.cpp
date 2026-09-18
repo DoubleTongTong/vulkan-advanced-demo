@@ -1,6 +1,7 @@
 #include "VulkanSwapchain.h"
 
 #include "VulkanContext.h"
+#include "VulkanProfiler.h"
 #include "VulkanUtils.h"
 
 #include <algorithm>
@@ -55,6 +56,7 @@ const std::vector<VkImageView>& VulkanSwapchain::imageViews() const {
 }
 
 VulkanSwapchain::AcquiredImage VulkanSwapchain::acquireNextImage(VkSemaphore imageAvailable) const {
+    APP_PROFILE_FUNCTION();
     AcquiredImage acquiredImage{};
 
     acquiredImage.result = vkAcquireNextImageKHR(
@@ -73,6 +75,7 @@ VulkanSwapchain::AcquiredImage VulkanSwapchain::acquireNextImage(VkSemaphore ima
 }
 
 VkResult VulkanSwapchain::present(const AcquiredImage& image, VkSemaphore renderFinished) const {
+    APP_PROFILE_FUNCTION();
     const VkPresentInfoKHR presentInfo{
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
         .waitSemaphoreCount = renderFinished ? 1u : 0u,
