@@ -238,6 +238,9 @@ add_executable(vulkan_advanced_demo
     src/rendering/RubberDuckCommandRecorder.cpp
     src/rendering/TexturedDuckCommandRecorder.cpp
     src/rendering/TriangleCommandRecorder.cpp
+    src/ui/FpsPanel.cpp
+    src/ui/ImGuiDemoPanel.cpp
+    src/ui/TextureViewerPanel.cpp
     src/VmaImplementation.cpp
     src/VulkanBindlessDescriptorSet.cpp
     src/VulkanBuffer.cpp

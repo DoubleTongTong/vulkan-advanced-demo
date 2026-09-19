@@ -1,4 +1,5 @@
 #include "GlfwWindow.h"
+#include "FramesPerSecondCounter.h"
 #include "VulkanContext.h"
 #include "VulkanFrameSync.h"
 #include "VulkanImmediateCommands.h"
@@ -9,11 +10,15 @@
 #include "VulkanUtils.h"
 #include "rendering/IRenderCommandRecorder.h"
 #include "rendering/TexturedDuckCommandRecorder.h"
+#include "ui/FpsPanel.h"
+#include "ui/ImGuiDemoPanel.h"
+#include "ui/TextureViewerPanel.h"
 
 #include <cstdint>
 #include <exception>
 #include <filesystem>
 #include <iostream>
+#include <memory>
 
 int main() {
     try {
@@ -49,9 +54,14 @@ int main() {
             RUBBER_DUCK_SCENE,
             RUBBER_DUCK_TEXTURE);
         IRenderCommandRecorder& renderCommandRecorder = texturedDuckRecorder;
-        VulkanImGuiOverlay imgui(vulkan, swapchain, window.handle(), texturedDuckRecorder.texture());
+        FramesPerSecondCounter fpsCounter;
+        VulkanImGuiOverlay imgui(vulkan, swapchain, window.handle());
+        imgui.addPanel(std::make_unique<TextureViewerPanel>(texturedDuckRecorder.texture()));
+        imgui.addPanel(std::make_unique<ImGuiDemoPanel>());
+        imgui.addPanel(std::make_unique<FpsPanel>(fpsCounter));
 
         VulkanFrameSync frameSync(vulkan, static_cast<uint32_t>(swapchain.images().size()));
+        fpsCounter.reset();
 
         while (!window.shouldClose()) {
             APP_PROFILE_FRAME();
@@ -65,6 +75,7 @@ int main() {
 
             const VulkanSwapchain::AcquiredImage acquiredImage = swapchain.acquireNextImage(frame.imageAvailable);
             if (acquiredImage.result == VK_ERROR_OUT_OF_DATE_KHR) {
+                fpsCounter.tick(false);
                 continue;
             }
 
@@ -89,6 +100,7 @@ int main() {
             }
 
             frameSync.advanceFrame();
+            fpsCounter.tick(true);
         }
 
         commands.waitAll();

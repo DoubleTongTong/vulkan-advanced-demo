@@ -8,30 +8,35 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 class VulkanBindlessDescriptorSet;
 class VulkanContext;
 class VulkanRenderPipeline;
 class VulkanSwapchain;
 class VulkanTexture2D;
+class IImGuiPanel;
 struct GLFWwindow;
 
-// 在已有场景上叠加 ImGui；每个 frame slot 单独保存顶点和索引缓冲。
+// 只负责 ImGui 的输入、GPU 资源与绘制；具体界面由 panel 描述。
 class VulkanImGuiOverlay {
 public:
     VulkanImGuiOverlay(
         const VulkanContext& context,
         const VulkanSwapchain& swapchain,
-        GLFWwindow* window,
-        const VulkanTexture2D& previewTexture);
+        GLFWwindow* window);
     ~VulkanImGuiOverlay();
 
     VulkanImGuiOverlay(const VulkanImGuiOverlay&) = delete;
     VulkanImGuiOverlay& operator=(const VulkanImGuiOverlay&) = delete;
 
+    void addPanel(std::unique_ptr<IImGuiPanel> panel);
+    uint32_t registerTexture(const VulkanTexture2D& texture);
     void record(VkCommandBuffer commandBuffer, uint32_t imageIndex, uint32_t frameIndex);
 
 private:
+    static constexpr uint32_t FontTextureId = 1;
+
     struct FrameBuffers {
         std::unique_ptr<VulkanBuffer> vertices;
         std::unique_ptr<VulkanBuffer> indices;
@@ -48,4 +53,6 @@ private:
     std::unique_ptr<VulkanBindlessDescriptorSet> descriptors_;
     std::unique_ptr<VulkanRenderPipeline> pipeline_;
     std::array<FrameBuffers, VulkanFrameSync::MaxFramesInFlight> frameBuffers_{};
+    std::vector<std::unique_ptr<IImGuiPanel>> panels_;
+    uint32_t nextTextureId_ = FontTextureId + 1;
 };

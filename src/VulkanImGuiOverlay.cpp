@@ -9,6 +9,7 @@
 #include "VulkanSwapchain.h"
 #include "VulkanTexture2D.h"
 #include "VulkanUtils.h"
+#include "ui/IImGuiPanel.h"
 
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
@@ -22,9 +23,6 @@
 
 namespace {
 
-constexpr uint32_t FontTextureId = 1;
-constexpr uint32_t PreviewTextureId = 2;
-
 struct PushConstants {
     float scale[2];
     float translate[2];
@@ -36,8 +34,7 @@ struct PushConstants {
 VulkanImGuiOverlay::VulkanImGuiOverlay(
     const VulkanContext& context,
     const VulkanSwapchain& swapchain,
-    GLFWwindow* window,
-    const VulkanTexture2D& previewTexture)
+    GLFWwindow* window)
     : context_(context), swapchain_(swapchain) {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -56,7 +53,6 @@ VulkanImGuiOverlay::VulkanImGuiOverlay(
         descriptors_ = std::make_unique<VulkanBindlessDescriptorSet>(context_, 8, 1, "ImGui textures");
         descriptors_->fillSamplers(fontTexture_->sampler());
         descriptors_->writeTexture2D(FontTextureId, *fontTexture_);
-        descriptors_->writeTexture2D(PreviewTextureId, previewTexture);
         createPipeline();
     } catch (...) {
         if (glfwInitialized) {
@@ -68,8 +64,28 @@ VulkanImGuiOverlay::VulkanImGuiOverlay(
 }
 
 VulkanImGuiOverlay::~VulkanImGuiOverlay() {
+    panels_.clear();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
+}
+
+void VulkanImGuiOverlay::addPanel(std::unique_ptr<IImGuiPanel> panel) {
+    if (!panel) {
+        throw std::invalid_argument("ImGui panel must not be null.");
+    }
+    // 贴图等资源只在加入界面时注册一次，录帧时只构建控件。
+    panel->attach(*this);
+    panels_.push_back(std::move(panel));
+}
+
+uint32_t VulkanImGuiOverlay::registerTexture(const VulkanTexture2D& texture) {
+    if (nextTextureId_ >= descriptors_->maxTextures()) {
+        throw std::runtime_error("ImGui texture table is full.");
+    }
+    const uint32_t textureId = nextTextureId_;
+    descriptors_->writeTexture2D(textureId, texture);
+    ++nextTextureId_;
+    return textureId;
 }
 
 void VulkanImGuiOverlay::createFontTexture() {
@@ -173,10 +189,9 @@ void VulkanImGuiOverlay::record(VkCommandBuffer commandBuffer, uint32_t imageInd
     // 输入已在主循环中轮询；这里统一完成 ImGui 界面和 Vulkan 绘制命令。
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-    ImGui::Begin("Texture Viewer");
-    ImGui::Image(static_cast<ImTextureID>(PreviewTextureId), ImVec2(320, 320));
-    ImGui::End();
-    ImGui::ShowDemoWindow();
+    for (const auto& panel : panels_) {
+        panel->draw();
+    }
     ImGui::Render();
     const ImDrawData* drawData = ImGui::GetDrawData();
     const float width = drawData->DisplaySize.x * drawData->FramebufferScale.x;
