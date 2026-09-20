@@ -29,6 +29,10 @@ struct PushConstants {
     uint32_t textureId;
 };
 
+constexpr const char* SamplersResource = "kSamplers";
+constexpr const char* TexturesResource = "kTextures2D";
+constexpr uint32_t MaxTextures = 8;
+
 } // namespace
 
 VulkanImGuiOverlay::VulkanImGuiOverlay(
@@ -50,9 +54,6 @@ VulkanImGuiOverlay::VulkanImGuiOverlay(
         ImGui::StyleColorsDark();
 
         createFontTexture();
-        descriptors_ = std::make_unique<VulkanBindlessDescriptorSet>(context_, 8, 1, "ImGui textures");
-        descriptors_->fillSamplers(fontTexture_->sampler());
-        descriptors_->writeTexture2D(FontTextureId, *fontTexture_);
         createPipeline();
     } catch (...) {
         if (glfwInitialized) {
@@ -79,11 +80,11 @@ void VulkanImGuiOverlay::addPanel(std::unique_ptr<IImGuiPanel> panel) {
 }
 
 uint32_t VulkanImGuiOverlay::registerTexture(const VulkanTexture2D& texture) {
-    if (nextTextureId_ >= descriptors_->maxTextures()) {
+    if (nextTextureId_ >= descriptors_->capacity(TexturesResource)) {
         throw std::runtime_error("ImGui texture table is full.");
     }
     const uint32_t textureId = nextTextureId_;
-    descriptors_->writeTexture2D(textureId, texture);
+    descriptors_->writeTexture2D(TexturesResource, textureId, texture);
     ++nextTextureId_;
     return textureId;
 }
@@ -109,6 +110,15 @@ void VulkanImGuiOverlay::createPipeline() {
     const std::filesystem::path shaderDir = APP_IMGUI_SHADER_DIR;
     const VulkanShaderModule vertex = VulkanShaderModule::fromFile(context_, shaderDir / "main.vert");
     const VulkanShaderModule fragment = VulkanShaderModule::fromFile(context_, shaderDir / "main.frag");
+    descriptors_ = std::make_unique<VulkanBindlessDescriptorSet>(
+        context_,
+        BindlessDescriptorSetDesc{
+            .shaders = {&vertex, &fragment},
+            .runtimeArrays = {{TexturesResource, MaxTextures}},
+            .debugName = "ImGui textures",
+        });
+    descriptors_->fillSamplers(SamplersResource, fontTexture_->sampler());
+    descriptors_->writeTexture2D(TexturesResource, FontTextureId, *fontTexture_);
     pipeline_ = std::make_unique<VulkanRenderPipeline>(context_, RenderPipelineDesc{
         .vertexShader = &vertex,
         .fragmentShader = &fragment,
@@ -253,7 +263,7 @@ void VulkanImGuiOverlay::record(VkCommandBuffer commandBuffer, uint32_t imageInd
             if (right <= left || bottom <= top) {
                 continue;
             }
-            if (draw.TextureId >= descriptors_->maxTextures()) {
+            if (draw.TextureId >= descriptors_->capacity(TexturesResource)) {
                 throw std::runtime_error("ImGui texture ID is outside the bindless table.");
             }
             const VkRect2D scissor{

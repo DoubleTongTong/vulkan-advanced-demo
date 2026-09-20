@@ -39,6 +39,7 @@ public:
     ShaderStage stage() const;
     VkShaderStageFlagBits vkStage() const;
     uint32_t pushConstantSize() const;
+    const std::vector<ShaderDescriptorBinding>& descriptorBindings() const;
 
 private:
     VulkanShaderModule(const VulkanContext& context, ShaderStage stage, const char* debugName);
@@ -54,4 +55,5 @@ private:
     VkShaderModule handle_ = VK_NULL_HANDLE;
     ShaderStage stage_ = ShaderStage::Fragment;
     uint32_t pushConstantSize_ = 0;
+    std::vector<ShaderDescriptorBinding> descriptorBindings_;
 };

@@ -16,6 +16,8 @@ void transitionImage(
     VkAccessFlags srcAccess,
     VkAccessFlags dstAccess,
     VkPipelineStageFlags srcStage,
-    VkPipelineStageFlags dstStage);
+    VkPipelineStageFlags dstStage,
+    uint32_t baseArrayLayer = 0,
+    uint32_t layerCount = 1);
 
 } // namespace vulkan_utils

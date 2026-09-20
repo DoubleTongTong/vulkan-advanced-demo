@@ -92,7 +92,8 @@ void VulkanStagingUploader::uploadImage2D(
     size_t byteSize,
     VkImageLayout oldLayout,
     VkImageLayout finalLayout,
-    size_t bytesPerPixel) {
+    size_t bytesPerPixel,
+    uint32_t arrayLayer) {
     if (!image || !data || byteSize == 0) {
         return;
     }
@@ -139,7 +140,9 @@ void VulkanStagingUploader::uploadImage2D(
                 0,
                 VK_ACCESS_TRANSFER_WRITE_BIT,
                 VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                VK_PIPELINE_STAGE_TRANSFER_BIT);
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                arrayLayer,
+                1);
         }
 
         const VkBufferImageCopy copyRegion{
@@ -149,7 +152,7 @@ void VulkanStagingUploader::uploadImage2D(
             .imageSubresource = {
                 .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                 .mipLevel = 0,
-                .baseArrayLayer = 0,
+                .baseArrayLayer = arrayLayer,
                 .layerCount = 1,
             },
             .imageOffset = {0, static_cast<int32_t>(copiedRows), 0},
@@ -178,7 +181,9 @@ void VulkanStagingUploader::uploadImage2D(
                 VK_ACCESS_TRANSFER_WRITE_BIT,
                 VK_ACCESS_SHADER_READ_BIT,
                 VK_PIPELINE_STAGE_TRANSFER_BIT,
-                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                arrayLayer,
+                1);
         }
 
         const VulkanImmediateCommands::SubmitHandle submitHandle = commands_.submit(commandBuffer);

@@ -211,8 +211,10 @@ void VulkanContext::uploadImage2D(
     size_t byteSize,
     VkImageLayout oldLayout,
     VkImageLayout finalLayout,
-    size_t bytesPerPixel) const {
-    stagingUploader_->uploadImage2D(image, extent, data, byteSize, oldLayout, finalLayout, bytesPerPixel);
+    size_t bytesPerPixel,
+    uint32_t arrayLayer) const {
+    stagingUploader_->uploadImage2D(
+        image, extent, data, byteSize, oldLayout, finalLayout, bytesPerPixel, arrayLayer);
 }
 
 void VulkanContext::createInstance() {

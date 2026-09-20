@@ -89,6 +89,7 @@ assets/*
 !assets/README.md
 !assets/rubber_duck/
 !assets/rubber_duck/**
+!assets/piazza_bologni_1k.hdr
 
 # Dependency caches
 .cache/

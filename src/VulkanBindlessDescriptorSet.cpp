@@ -1,37 +1,51 @@
 #include "VulkanBindlessDescriptorSet.h"
 
 #include "VulkanContext.h"
+#include "VulkanShaderModule.h"
 #include "VulkanTexture2D.h"
+#include "VulkanTextureCube.h"
 #include "VulkanUtils.h"
 
-#include <iterator>
+#include <algorithm>
 #include <stdexcept>
 #include <string>
 #include <utility>
-#include <vector>
+
+namespace {
+
+constexpr VkDescriptorBindingFlags BindlessSampledImageFlags =
+    VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |
+    VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT |
+    VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
+
+VkDescriptorType toVkDescriptorType(ShaderDescriptorType type) {
+    switch (type) {
+    case ShaderDescriptorType::Sampler:
+        return VK_DESCRIPTOR_TYPE_SAMPLER;
+    case ShaderDescriptorType::SampledImage:
+        return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    }
+    throw std::runtime_error("Unsupported reflected descriptor type.");
+}
+
+} // namespace
 
 VulkanBindlessDescriptorSet::VulkanBindlessDescriptorSet(
     const VulkanContext& context,
-    uint32_t maxTextures,
-    uint32_t maxSamplers,
-    const char* debugName)
-    : context_(&context),
-      maxTextures_(maxTextures),
-      maxSamplers_(maxSamplers) {
-    if (maxTextures_ == 0 || maxSamplers_ == 0) {
-        throw std::runtime_error("Bindless descriptor table sizes must be greater than zero.");
-    }
-
+    const BindlessDescriptorSetDesc& desc)
+    : context_(&context) {
+    reflectBindings(desc);
     validateLimits();
-    createLayout(debugName);
-    createPoolAndSet(debugName);
+    createLayout(desc.debugName);
+    createPoolAndSet(desc.debugName);
 }
 
 VulkanBindlessDescriptorSet::~VulkanBindlessDescriptorSet() {
     destroy();
 }
 
-VulkanBindlessDescriptorSet::VulkanBindlessDescriptorSet(VulkanBindlessDescriptorSet&& other) noexcept {
+VulkanBindlessDescriptorSet::VulkanBindlessDescriptorSet(
+    VulkanBindlessDescriptorSet&& other) noexcept {
     *this = std::move(other);
 }
 
@@ -42,21 +56,16 @@ VulkanBindlessDescriptorSet& VulkanBindlessDescriptorSet::operator=(
     }
 
     destroy();
-
     context_ = other.context_;
-    maxTextures_ = other.maxTextures_;
-    maxSamplers_ = other.maxSamplers_;
+    bindings_ = std::move(other.bindings_);
     layout_ = other.layout_;
     pool_ = other.pool_;
     set_ = other.set_;
 
     other.context_ = nullptr;
-    other.maxTextures_ = 0;
-    other.maxSamplers_ = 0;
     other.layout_ = VK_NULL_HANDLE;
     other.pool_ = VK_NULL_HANDLE;
     other.set_ = VK_NULL_HANDLE;
-
     return *this;
 }
 
@@ -68,16 +77,20 @@ VkDescriptorSet VulkanBindlessDescriptorSet::set() const {
     return set_;
 }
 
-uint32_t VulkanBindlessDescriptorSet::maxTextures() const {
-    return maxTextures_;
+uint32_t VulkanBindlessDescriptorSet::capacity(std::string_view name) const {
+    const auto it = std::find_if(bindings_.begin(), bindings_.end(), [name](const Binding& item) {
+        return item.name == name;
+    });
+    if (it == bindings_.end()) {
+        throw std::out_of_range("Descriptor resource '" + std::string(name) + "' does not exist.");
+    }
+    return it->descriptorCount;
 }
 
-uint32_t VulkanBindlessDescriptorSet::maxSamplers() const {
-    return maxSamplers_;
-}
-
-void VulkanBindlessDescriptorSet::fillSamplers(VkSampler sampler) {
-    std::vector<VkDescriptorImageInfo> samplerInfos(maxSamplers_);
+void VulkanBindlessDescriptorSet::fillSamplers(std::string_view name, VkSampler sampler) {
+    const Binding& item = binding(name, VK_DESCRIPTOR_TYPE_SAMPLER);
+    const uint32_t count = item.descriptorCount;
+    std::vector<VkDescriptorImageInfo> samplerInfos(count);
     for (VkDescriptorImageInfo& info : samplerInfos) {
         info.sampler = sampler;
     }
@@ -85,28 +98,29 @@ void VulkanBindlessDescriptorSet::fillSamplers(VkSampler sampler) {
     const VkWriteDescriptorSet write{
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         .dstSet = set_,
-        .dstBinding = SamplersBinding,
-        .dstArrayElement = 0,
-        .descriptorCount = maxSamplers_,
+        .dstBinding = item.binding,
+        .descriptorCount = count,
         .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
         .pImageInfo = samplerInfos.data(),
     };
     vkUpdateDescriptorSets(context_->device(), 1, &write, 0, nullptr);
 }
 
-void VulkanBindlessDescriptorSet::writeSampler(uint32_t samplerIndex, VkSampler sampler) {
-    if (samplerIndex >= maxSamplers_) {
+void VulkanBindlessDescriptorSet::writeSampler(
+    std::string_view name,
+    uint32_t index,
+    VkSampler sampler) {
+    const Binding& item = binding(name, VK_DESCRIPTOR_TYPE_SAMPLER);
+    if (index >= item.descriptorCount) {
         throw std::out_of_range("Bindless sampler index is out of range.");
     }
 
-    const VkDescriptorImageInfo samplerInfo{
-        .sampler = sampler,
-    };
+    const VkDescriptorImageInfo samplerInfo{.sampler = sampler};
     const VkWriteDescriptorSet write{
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         .dstSet = set_,
-        .dstBinding = SamplersBinding,
-        .dstArrayElement = samplerIndex,
+        .dstBinding = item.binding,
+        .dstArrayElement = index,
         .descriptorCount = 1,
         .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
         .pImageInfo = &samplerInfo,
@@ -114,25 +128,20 @@ void VulkanBindlessDescriptorSet::writeSampler(uint32_t samplerIndex, VkSampler 
     vkUpdateDescriptorSets(context_->device(), 1, &write, 0, nullptr);
 }
 
-void VulkanBindlessDescriptorSet::writeTexture2D(uint32_t textureIndex, const VulkanTexture2D& texture) {
-    if (textureIndex >= maxTextures_) {
-        throw std::out_of_range("Bindless texture index is out of range.");
-    }
+void VulkanBindlessDescriptorSet::writeTexture2D(
+    std::string_view name,
+    uint32_t index,
+    const VulkanTexture2D& texture) {
+    writeSampledImage(
+        name, index, texture.imageView(), texture.layout(), ShaderImageDimension::Image2D);
+}
 
-    const VkDescriptorImageInfo textureInfo{
-        .imageView = texture.imageView(),
-        .imageLayout = texture.layout(),
-    };
-    const VkWriteDescriptorSet write{
-        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .dstSet = set_,
-        .dstBinding = Textures2DBinding,
-        .dstArrayElement = textureIndex,
-        .descriptorCount = 1,
-        .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-        .pImageInfo = &textureInfo,
-    };
-    vkUpdateDescriptorSets(context_->device(), 1, &write, 0, nullptr);
+void VulkanBindlessDescriptorSet::writeTextureCube(
+    std::string_view name,
+    uint32_t index,
+    const VulkanTextureCube& texture) {
+    writeSampledImage(
+        name, index, texture.imageView(), texture.layout(), ShaderImageDimension::Cube);
 }
 
 void VulkanBindlessDescriptorSet::bind(
@@ -150,64 +159,173 @@ void VulkanBindlessDescriptorSet::bind(
         nullptr);
 }
 
-void VulkanBindlessDescriptorSet::validateLimits() const {
-    const VulkanDescriptorIndexingLimits limits = context_->descriptorIndexingLimits();
+const VulkanBindlessDescriptorSet::Binding& VulkanBindlessDescriptorSet::binding(
+    std::string_view name,
+    VkDescriptorType expectedType,
+    ShaderImageDimension expectedDimension) const {
+    const auto it = std::find_if(bindings_.begin(), bindings_.end(), [name](const Binding& item) {
+        return item.name == name;
+    });
+    if (it == bindings_.end() ||
+        it->descriptorType != expectedType ||
+        it->imageDimension != expectedDimension) {
+        throw std::out_of_range(
+            "Descriptor resource '" + std::string(name) + "' has an incompatible type or image dimension.");
+    }
+    return *it;
+}
 
-    if (maxTextures_ > limits.maxUpdateAfterBindSampledImages) {
-        throw std::runtime_error(
-            "Bindless texture capacity " + std::to_string(maxTextures_) +
-            " exceeds maxDescriptorSetUpdateAfterBindSampledImages " +
-            std::to_string(limits.maxUpdateAfterBindSampledImages) + ".");
+void VulkanBindlessDescriptorSet::writeSampledImage(
+    std::string_view name,
+    uint32_t index,
+    VkImageView view,
+    VkImageLayout layout,
+    ShaderImageDimension dimension) {
+    const Binding& item = binding(name, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, dimension);
+    if (index >= item.descriptorCount) {
+        throw std::out_of_range("Bindless sampled image index is out of range.");
     }
 
-    if (maxSamplers_ > limits.maxUpdateAfterBindSamplers) {
-        throw std::runtime_error(
-            "Bindless sampler capacity " + std::to_string(maxSamplers_) +
-            " exceeds maxDescriptorSetUpdateAfterBindSamplers " +
-            std::to_string(limits.maxUpdateAfterBindSamplers) + ".");
+    const VkDescriptorImageInfo imageInfo{
+        .imageView = view,
+        .imageLayout = layout,
+    };
+    const VkWriteDescriptorSet write{
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = set_,
+        .dstBinding = item.binding,
+        .dstArrayElement = index,
+        .descriptorCount = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+        .pImageInfo = &imageInfo,
+    };
+    vkUpdateDescriptorSets(context_->device(), 1, &write, 0, nullptr);
+}
+
+void VulkanBindlessDescriptorSet::reflectBindings(const BindlessDescriptorSetDesc& desc) {
+    if (desc.shaders.empty()) {
+        throw std::runtime_error("Bindless descriptor reflection requires at least one shader.");
+    }
+
+    for (const VulkanShaderModule* shader : desc.shaders) {
+        if (!shader) {
+            throw std::runtime_error("Cannot reflect a null shader module.");
+        }
+
+        for (const ShaderDescriptorBinding& reflected : shader->descriptorBindings()) {
+            if (reflected.set != desc.set) {
+                continue;
+            }
+
+            const VkDescriptorType descriptorType = toVkDescriptorType(reflected.type);
+            const bool runtimeArray = reflected.count == 0;
+            if (reflected.name.empty()) {
+                throw std::runtime_error(
+                    "Descriptor binding " + std::to_string(reflected.binding) +
+                    " has no reflected name. Keep SPIR-V descriptor names for resource lookup.");
+            }
+            uint32_t descriptorCount = reflected.count;
+            if (runtimeArray) {
+                const auto capacity = std::find_if(
+                    desc.runtimeArrays.begin(),
+                    desc.runtimeArrays.end(),
+                    [&reflected](const BindlessRuntimeArrayDesc& item) {
+                        return item.name == reflected.name;
+                    });
+                if (capacity == desc.runtimeArrays.end() || capacity->capacity == 0) {
+                    throw std::runtime_error(
+                        "Runtime descriptor array binding " + std::to_string(reflected.binding) +
+                        " requires a non-zero capacity.");
+                }
+                descriptorCount = capacity->capacity;
+            }
+
+            const auto existing = std::find_if(
+                bindings_.begin(), bindings_.end(), [&reflected](const Binding& item) {
+                    return item.binding == reflected.binding;
+                });
+            if (existing == bindings_.end()) {
+                bindings_.push_back({
+                    .name = reflected.name,
+                    .binding = reflected.binding,
+                    .descriptorType = descriptorType,
+                    .imageDimension = reflected.imageDimension,
+                    .descriptorCount = descriptorCount,
+                    .stageFlags = static_cast<VkShaderStageFlags>(shader->vkStage()),
+                    .runtimeArray = runtimeArray,
+                });
+            } else {
+                if (existing->descriptorType != descriptorType ||
+                    existing->name != reflected.name ||
+                    existing->imageDimension != reflected.imageDimension ||
+                    existing->descriptorCount != descriptorCount ||
+                    existing->runtimeArray != runtimeArray) {
+                    throw std::runtime_error(
+                        "Shaders declare incompatible descriptor binding " +
+                        std::to_string(reflected.binding) + ".");
+                }
+                existing->stageFlags |= shader->vkStage();
+            }
+        }
+    }
+
+    if (bindings_.empty()) {
+        throw std::runtime_error("Shaders do not declare descriptors in the requested set.");
+    }
+    std::ranges::sort(bindings_, {}, &Binding::binding);
+}
+
+void VulkanBindlessDescriptorSet::validateLimits() const {
+    uint64_t sampledImageCount = 0;
+    uint64_t samplerCount = 0;
+    for (const Binding& item : bindings_) {
+        if (item.descriptorType == VK_DESCRIPTOR_TYPE_SAMPLER) {
+            samplerCount += item.descriptorCount;
+        } else if (item.descriptorType == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE) {
+            sampledImageCount += item.descriptorCount;
+        }
+    }
+
+    const VulkanDescriptorIndexingLimits limits = context_->descriptorIndexingLimits();
+    if (sampledImageCount > limits.maxUpdateAfterBindSampledImages) {
+        throw std::runtime_error("Bindless sampled image capacity exceeds the device limit.");
+    }
+    if (samplerCount > limits.maxUpdateAfterBindSamplers) {
+        throw std::runtime_error("Bindless sampler capacity exceeds the device limit.");
     }
 }
 
 void VulkanBindlessDescriptorSet::createLayout(const char* debugName) {
-    constexpr VkShaderStageFlags ShaderStages =
-        VK_SHADER_STAGE_VERTEX_BIT |
-        VK_SHADER_STAGE_FRAGMENT_BIT;
+    std::vector<VkDescriptorSetLayoutBinding> layoutBindings;
+    std::vector<VkDescriptorBindingFlags> bindingFlags;
+    layoutBindings.reserve(bindings_.size());
+    bindingFlags.reserve(bindings_.size());
 
-    const VkDescriptorSetLayoutBinding bindings[] = {
-        {
-            .binding = SamplersBinding,
-            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
-            .descriptorCount = maxSamplers_,
-            .stageFlags = ShaderStages,
-        },
-        {
-            .binding = Textures2DBinding,
-            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-            .descriptorCount = maxTextures_,
-            .stageFlags = ShaderStages,
-        },
-    };
-    const VkDescriptorBindingFlags bindingFlags[] = {
-        0,
-        VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |
-            VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT |
-            VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
-            VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT,
-    };
+    for (const Binding& item : bindings_) {
+        layoutBindings.push_back({
+            .binding = item.binding,
+            .descriptorType = item.descriptorType,
+            .descriptorCount = item.descriptorCount,
+            .stageFlags = item.stageFlags,
+        });
+        bindingFlags.push_back(
+            item.descriptorType == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE
+                ? BindlessSampledImageFlags
+                : 0);
+    }
+
     const VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsInfo{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
-        .bindingCount = static_cast<uint32_t>(std::size(bindingFlags)),
-        .pBindingFlags = bindingFlags,
+        .bindingCount = static_cast<uint32_t>(bindingFlags.size()),
+        .pBindingFlags = bindingFlags.data(),
     };
-
     const VkDescriptorSetLayoutCreateInfo createInfo{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .pNext = &bindingFlagsInfo,
         .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
-        .bindingCount = static_cast<uint32_t>(std::size(bindings)),
-        .pBindings = bindings,
+        .bindingCount = static_cast<uint32_t>(layoutBindings.size()),
+        .pBindings = layoutBindings.data(),
     };
-
     vulkan_utils::checkVk(
         vkCreateDescriptorSetLayout(context_->device(), &createInfo, nullptr, &layout_),
         "vkCreateDescriptorSetLayout");
@@ -218,24 +336,26 @@ void VulkanBindlessDescriptorSet::createLayout(const char* debugName) {
 }
 
 void VulkanBindlessDescriptorSet::createPoolAndSet(const char* debugName) {
-    const VkDescriptorPoolSize poolSizes[] = {
-        {
-            .type = VK_DESCRIPTOR_TYPE_SAMPLER,
-            .descriptorCount = maxSamplers_,
-        },
-        {
-            .type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-            .descriptorCount = maxTextures_,
-        },
-    };
+    std::vector<VkDescriptorPoolSize> poolSizes;
+    for (const Binding& binding : bindings_) {
+        const auto existing = std::find_if(
+            poolSizes.begin(), poolSizes.end(), [&binding](const VkDescriptorPoolSize& size) {
+                return size.type == binding.descriptorType;
+            });
+        if (existing == poolSizes.end()) {
+            poolSizes.push_back({binding.descriptorType, binding.descriptorCount});
+        } else {
+            existing->descriptorCount += binding.descriptorCount;
+        }
+    }
+
     const VkDescriptorPoolCreateInfo poolCreateInfo{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
         .maxSets = 1,
-        .poolSizeCount = static_cast<uint32_t>(std::size(poolSizes)),
-        .pPoolSizes = poolSizes,
+        .poolSizeCount = static_cast<uint32_t>(poolSizes.size()),
+        .pPoolSizes = poolSizes.data(),
     };
-
     vulkan_utils::checkVk(
         vkCreateDescriptorPool(context_->device(), &poolCreateInfo, nullptr, &pool_),
         "vkCreateDescriptorPool");
@@ -244,20 +364,12 @@ void VulkanBindlessDescriptorSet::createPoolAndSet(const char* debugName) {
         reinterpret_cast<uint64_t>(pool_),
         (std::string(debugName) + " pool").c_str());
 
-    const uint32_t textureDescriptorCount = maxTextures_;
-    const VkDescriptorSetVariableDescriptorCountAllocateInfo variableDescriptorCountInfo{
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO,
-        .descriptorSetCount = 1,
-        .pDescriptorCounts = &textureDescriptorCount,
-    };
     const VkDescriptorSetAllocateInfo allocateInfo{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .pNext = &variableDescriptorCountInfo,
         .descriptorPool = pool_,
         .descriptorSetCount = 1,
         .pSetLayouts = &layout_,
     };
-
     vulkan_utils::checkVk(
         vkAllocateDescriptorSets(context_->device(), &allocateInfo, &set_),
         "vkAllocateDescriptorSets");
@@ -267,15 +379,15 @@ void VulkanBindlessDescriptorSet::destroy() {
     if (!context_) {
         return;
     }
-
     if (pool_) {
         vkDestroyDescriptorPool(context_->device(), pool_, nullptr);
-        pool_ = VK_NULL_HANDLE;
-        set_ = VK_NULL_HANDLE;
     }
-
     if (layout_) {
         vkDestroyDescriptorSetLayout(context_->device(), layout_, nullptr);
-        layout_ = VK_NULL_HANDLE;
     }
+
+    context_ = nullptr;
+    layout_ = VK_NULL_HANDLE;
+    pool_ = VK_NULL_HANDLE;
+    set_ = VK_NULL_HANDLE;
 }

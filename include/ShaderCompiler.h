@@ -9,6 +9,27 @@ enum class ShaderStage {
     Fragment,
 };
 
+enum class ShaderDescriptorType {
+    Sampler,
+    SampledImage,
+};
+
+enum class ShaderImageDimension {
+    None,
+    Image2D,
+    Cube,
+};
+
+struct ShaderDescriptorBinding {
+    std::string name;
+    uint32_t set = 0;
+    uint32_t binding = 0;
+    ShaderDescriptorType type = ShaderDescriptorType::SampledImage;
+    ShaderImageDimension imageDimension = ShaderImageDimension::None;
+    // 0 表示 shader 声明的是 [] runtime array，实际容量由使用方决定。
+    uint32_t count = 0;
+};
+
 struct ShaderCompileResult {
     bool success = false;
     std::vector<uint8_t> spirv;
@@ -19,6 +40,7 @@ struct ShaderCompileResult {
 struct ShaderReflection {
     bool success = false;
     uint32_t pushConstantSize = 0;
+    std::vector<ShaderDescriptorBinding> descriptorBindings;
     std::string message;
 };
 

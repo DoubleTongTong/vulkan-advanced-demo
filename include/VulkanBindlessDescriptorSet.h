@@ -1,24 +1,36 @@
 #pragma once
 
+#include "ShaderCompiler.h"
+
 #include <vulkan/vulkan.h>
 
 #include <cstdint>
+#include <string>
+#include <string_view>
+#include <vector>
 
 class VulkanContext;
+class VulkanShaderModule;
 class VulkanTexture2D;
+class VulkanTextureCube;
 
-// 管理一张 bindless 资源表：
-// binding 0 保存 sampler table，binding 1 保存 sampled image runtime array。
+struct BindlessRuntimeArrayDesc {
+    std::string name;
+    uint32_t capacity = 0;
+};
+
+struct BindlessDescriptorSetDesc {
+    std::vector<const VulkanShaderModule*> shaders;
+    std::vector<BindlessRuntimeArrayDesc> runtimeArrays;
+    uint32_t set = 0;
+    const char* debugName = "Bindless descriptor set";
+};
+
+// binding、descriptor 类型和 shader stage 均来自 SPIR-V 反射。
+// 调用方只需为 shader 中的 [] runtime array 指定实际容量。
 class VulkanBindlessDescriptorSet {
 public:
-    static constexpr uint32_t SamplersBinding = 0;
-    static constexpr uint32_t Textures2DBinding = 1;
-
-    VulkanBindlessDescriptorSet(
-        const VulkanContext& context,
-        uint32_t maxTextures,
-        uint32_t maxSamplers,
-        const char* debugName);
+    VulkanBindlessDescriptorSet(const VulkanContext& context, const BindlessDescriptorSetDesc& desc);
     ~VulkanBindlessDescriptorSet();
 
     VulkanBindlessDescriptorSet(const VulkanBindlessDescriptorSet&) = delete;
@@ -29,23 +41,43 @@ public:
 
     VkDescriptorSetLayout layout() const;
     VkDescriptorSet set() const;
-    uint32_t maxTextures() const;
-    uint32_t maxSamplers() const;
+    uint32_t capacity(std::string_view name) const;
 
-    void fillSamplers(VkSampler sampler);
-    void writeSampler(uint32_t samplerIndex, VkSampler sampler);
-    void writeTexture2D(uint32_t textureIndex, const VulkanTexture2D& texture);
+    void fillSamplers(std::string_view name, VkSampler sampler);
+    void writeSampler(std::string_view name, uint32_t index, VkSampler sampler);
+    void writeTexture2D(std::string_view name, uint32_t index, const VulkanTexture2D& texture);
+    void writeTextureCube(std::string_view name, uint32_t index, const VulkanTextureCube& texture);
     void bind(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout, uint32_t setIndex = 0) const;
 
 private:
+    struct Binding {
+        std::string name;
+        uint32_t binding = 0;
+        VkDescriptorType descriptorType = VK_DESCRIPTOR_TYPE_MAX_ENUM;
+        ShaderImageDimension imageDimension = ShaderImageDimension::None;
+        uint32_t descriptorCount = 0;
+        VkShaderStageFlags stageFlags = 0;
+        bool runtimeArray = false;
+    };
+
+    const Binding& binding(
+        std::string_view name,
+        VkDescriptorType expectedType,
+        ShaderImageDimension expectedDimension = ShaderImageDimension::None) const;
+    void writeSampledImage(
+        std::string_view name,
+        uint32_t index,
+        VkImageView view,
+        VkImageLayout layout,
+        ShaderImageDimension dimension);
+    void reflectBindings(const BindlessDescriptorSetDesc& desc);
     void validateLimits() const;
     void createLayout(const char* debugName);
     void createPoolAndSet(const char* debugName);
     void destroy();
 
     const VulkanContext* context_ = nullptr;
-    uint32_t maxTextures_ = 0;
-    uint32_t maxSamplers_ = 0;
+    std::vector<Binding> bindings_;
     VkDescriptorSetLayout layout_ = VK_NULL_HANDLE;
     VkDescriptorPool pool_ = VK_NULL_HANDLE;
     VkDescriptorSet set_ = VK_NULL_HANDLE;

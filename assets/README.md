@@ -13,3 +13,7 @@ https://casual-effects.com/data/
 ## Rubber Duck
 
 `rubber_duck/` 是一个较小的 glTF 模型资产，用于 Buffer、模型加载和多 Pipeline 示例。这个目录已提交到仓库，通过 Git LFS 管理。
+
+## Piazza Bologni HDR
+
+`piazza_bologni_1k.hdr` 用于 cube map 环境反射示例，同样通过 Git LFS 管理。

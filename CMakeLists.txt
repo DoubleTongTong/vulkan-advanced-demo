@@ -138,12 +138,21 @@ set(BC7_DEMO_INPUT_TEXTURE
 
 set(RUBBER_DUCK_SCENE "${CMAKE_SOURCE_DIR}/assets/rubber_duck/scene.gltf")
 set(RUBBER_DUCK_TEXTURE "${CMAKE_SOURCE_DIR}/assets/rubber_duck/textures/Duck_baseColor.png")
+set(PIAZZA_ENVIRONMENT "${CMAKE_SOURCE_DIR}/assets/piazza_bologni_1k.hdr")
 
 if(NOT EXISTS "${BC7_DEMO_INPUT_TEXTURE}")
     message(FATAL_ERROR
         "BC7 demo requires the Bistro texture dataset, but the sample texture was not found:\n"
         "  ${BC7_DEMO_INPUT_TEXTURE}\n"
         "Please follow assets/README.md to download the Bistro dataset and place its contents under assets/."
+    )
+endif()
+
+if(NOT EXISTS "${PIAZZA_ENVIRONMENT}")
+    message(FATAL_ERROR
+        "Cube map sample requires the HDR environment texture:\n"
+        "  ${PIAZZA_ENVIRONMENT}\n"
+        "Restore Git LFS assets before configuring the project."
     )
 endif()
 
@@ -194,6 +203,7 @@ target_link_libraries(shader_compiler
 )
 
 add_library(image_processor
+    src/CubeMapProcessor.cpp
     src/ImageProcessor.cpp
 )
 
@@ -207,6 +217,11 @@ target_include_directories(image_processor
 target_compile_options(image_processor
     PRIVATE
         $<$<CXX_COMPILER_ID:MSVC>:/utf-8>
+)
+
+target_link_libraries(image_processor
+    PRIVATE
+        glm::glm
 )
 
 add_library(texture_compressor
@@ -235,6 +250,7 @@ add_executable(vulkan_advanced_demo
     src/main.cpp
     src/GlfwWindow.cpp
     src/ModelLoader.cpp
+    src/rendering/ReflectiveDuckCommandRecorder.cpp
     src/rendering/RubberDuckCommandRecorder.cpp
     src/rendering/TexturedDuckCommandRecorder.cpp
     src/rendering/TriangleCommandRecorder.cpp
@@ -255,14 +271,17 @@ add_executable(vulkan_advanced_demo
     src/VulkanStagingUploader.cpp
     src/VulkanSwapchain.cpp
     src/VulkanTexture2D.cpp
+    src/VulkanTextureCube.cpp
     src/VulkanUtils.cpp
 )
 
 target_compile_definitions(vulkan_advanced_demo
     PRIVATE
-        APP_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/textured_duck"
+        APP_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/reflective_duck"
+        APP_SKY_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/cube_sky"
         RUBBER_DUCK_SCENE="${RUBBER_DUCK_SCENE}"
         RUBBER_DUCK_TEXTURE="${RUBBER_DUCK_TEXTURE}"
+        PIAZZA_ENVIRONMENT="${PIAZZA_ENVIRONMENT}"
         APP_IMGUI_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/imgui"
         APP_ENABLE_TRACY=$<BOOL:${APP_ENABLE_TRACY}>
 )

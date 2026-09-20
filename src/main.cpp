@@ -9,10 +9,8 @@
 #include "VulkanSwapchain.h"
 #include "VulkanUtils.h"
 #include "rendering/IRenderCommandRecorder.h"
-#include "rendering/TexturedDuckCommandRecorder.h"
+#include "rendering/ReflectiveDuckCommandRecorder.h"
 #include "ui/FpsPanel.h"
-#include "ui/ImGuiDemoPanel.h"
-#include "ui/TextureViewerPanel.h"
 
 #include <cstdint>
 #include <exception>
@@ -34,6 +32,11 @@ int main() {
             VulkanShaderModule::fromFile(vulkan, shaderDir / "main.vert");
         const VulkanShaderModule fragmentShader =
             VulkanShaderModule::fromFile(vulkan, shaderDir / "main.frag");
+        const std::filesystem::path skyShaderDir = APP_SKY_SHADER_DIR;
+        const VulkanShaderModule skyVertexShader =
+            VulkanShaderModule::fromFile(vulkan, skyShaderDir / "main.vert");
+        const VulkanShaderModule skyFragmentShader =
+            VulkanShaderModule::fromFile(vulkan, skyShaderDir / "main.frag");
 
         std::cout << "Created shader modules. Vertex push constants: "
                   << vertexShader.pushConstantSize()
@@ -46,18 +49,19 @@ int main() {
 
         // ImmediateCommands 只负责命令缓冲的申请、提交和回收，不关心里面录制什么。
         VulkanImmediateCommands commands(vulkan, "Main immediate commands");
-        TexturedDuckCommandRecorder texturedDuckRecorder(
+        ReflectiveDuckCommandRecorder reflectiveDuckRecorder(
             vulkan,
             swapchain,
             vertexShader,
             fragmentShader,
+            skyVertexShader,
+            skyFragmentShader,
             RUBBER_DUCK_SCENE,
-            RUBBER_DUCK_TEXTURE);
-        IRenderCommandRecorder& renderCommandRecorder = texturedDuckRecorder;
+            RUBBER_DUCK_TEXTURE,
+            PIAZZA_ENVIRONMENT);
+        IRenderCommandRecorder& renderCommandRecorder = reflectiveDuckRecorder;
         FramesPerSecondCounter fpsCounter;
         VulkanImGuiOverlay imgui(vulkan, swapchain, window.handle());
-        imgui.addPanel(std::make_unique<TextureViewerPanel>(texturedDuckRecorder.texture()));
-        imgui.addPanel(std::make_unique<ImGuiDemoPanel>());
         imgui.addPanel(std::make_unique<FpsPanel>(fpsCounter));
 
         VulkanFrameSync frameSync(vulkan, static_cast<uint32_t>(swapchain.images().size()));

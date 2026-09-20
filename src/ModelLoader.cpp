@@ -27,15 +27,20 @@ ModelMesh ModelLoader::loadFirstMesh(const std::filesystem::path& scenePath) {
             scenePath.string().c_str(),
             aiProcess_Triangulate |
                 aiProcess_JoinIdenticalVertices |
+                aiProcess_GenSmoothNormals |
                 aiProcess_PreTransformVertices));
     if (!scene || scene->mNumMeshes == 0 || !scene->mMeshes[0]) {
         throw std::runtime_error("Failed to load model scene: " + scenePath.string());
     }
 
     const aiMesh* mesh = scene->mMeshes[0];
+    if (!mesh->HasNormals()) {
+        throw std::runtime_error("Model scene does not contain vertex normals: " + scenePath.string());
+    }
 
     ModelMesh data;
     data.positions.resize(static_cast<size_t>(mesh->mNumVertices) * 3u);
+    data.normals.resize(static_cast<size_t>(mesh->mNumVertices) * 3u);
     data.texcoords.resize(static_cast<size_t>(mesh->mNumVertices) * 2u);
     data.indices.resize(static_cast<size_t>(mesh->mNumFaces) * 3u);
     glm::vec3 minBounds(std::numeric_limits<float>::max());
@@ -47,6 +52,11 @@ ModelMesh ModelLoader::loadFirstMesh(const std::filesystem::path& scenePath) {
         data.positions[offset + 0u] = vertex.x;
         data.positions[offset + 1u] = vertex.y;
         data.positions[offset + 2u] = vertex.z;
+
+        const aiVector3D& normal = mesh->mNormals[i];
+        data.normals[offset + 0u] = normal.x;
+        data.normals[offset + 1u] = normal.y;
+        data.normals[offset + 2u] = normal.z;
 
         const size_t texcoordOffset = static_cast<size_t>(i) * 2u;
         if (mesh->HasTextureCoords(0)) {

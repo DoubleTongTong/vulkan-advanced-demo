@@ -51,7 +51,8 @@ public:
         size_t byteSize,
         VkImageLayout oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         VkImageLayout finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        size_t bytesPerPixel = 4) const;
+        size_t bytesPerPixel = 4,
+        uint32_t arrayLayer = 0) const;
 
 private:
     static constexpr uint32_t InvalidQueueFamily = UINT32_MAX;

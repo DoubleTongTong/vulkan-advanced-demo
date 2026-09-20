@@ -26,7 +26,8 @@ public:
         size_t byteSize,
         VkImageLayout oldLayout,
         VkImageLayout finalLayout,
-        size_t bytesPerPixel);
+        size_t bytesPerPixel,
+        uint32_t arrayLayer);
 
 private:
     static constexpr VkDeviceSize MinStagingBufferSize = 16ull * 1024ull * 1024ull;

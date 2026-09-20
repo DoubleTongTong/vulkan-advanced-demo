@@ -183,9 +183,53 @@ ShaderReflection ShaderCompiler::reflect(const std::vector<uint8_t>& spirv) {
         pushConstantSize = std::max(pushConstantSize, block.offset + block.size);
     }
 
+    uint32_t descriptorCount = 0;
+    if (spvReflectEnumerateDescriptorBindings(&module, &descriptorCount, nullptr) !=
+        SPV_REFLECT_RESULT_SUCCESS) {
+        return {.message = "Failed to enumerate SPIR-V descriptor bindings."};
+    }
+
+    std::vector<SpvReflectDescriptorBinding*> reflectedBindings(descriptorCount);
+    if (descriptorCount > 0 &&
+        spvReflectEnumerateDescriptorBindings(
+            &module, &descriptorCount, reflectedBindings.data()) != SPV_REFLECT_RESULT_SUCCESS) {
+        return {.message = "Failed to read SPIR-V descriptor bindings."};
+    }
+
+    std::vector<ShaderDescriptorBinding> descriptorBindings;
+    descriptorBindings.reserve(descriptorCount);
+    for (const SpvReflectDescriptorBinding* binding : reflectedBindings) {
+        ShaderDescriptorType type;
+        ShaderImageDimension imageDimension = ShaderImageDimension::None;
+        if (binding->descriptor_type == SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLER) {
+            type = ShaderDescriptorType::Sampler;
+        } else if (binding->descriptor_type == SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLED_IMAGE) {
+            type = ShaderDescriptorType::SampledImage;
+            if (binding->image.dim == SpvDim2D) {
+                imageDimension = ShaderImageDimension::Image2D;
+            } else if (binding->image.dim == SpvDimCube) {
+                imageDimension = ShaderImageDimension::Cube;
+            } else {
+                return {.message = "SPIR-V reflection found an unsupported sampled image dimension."};
+            }
+        } else {
+            return {.message = "SPIR-V reflection found an unsupported descriptor type."};
+        }
+
+        descriptorBindings.push_back({
+            .name = binding->name ? binding->name : "",
+            .set = binding->set,
+            .binding = binding->binding,
+            .type = type,
+            .imageDimension = imageDimension,
+            .count = binding->count,
+        });
+    }
+
     return {
         .success = true,
         .pushConstantSize = pushConstantSize,
+        .descriptorBindings = std::move(descriptorBindings),
     };
 }
 

@@ -1,5 +1,6 @@
-#include "rendering/TexturedDuckCommandRecorder.h"
+#include "rendering/ReflectiveDuckCommandRecorder.h"
 
+#include "CubeMapProcessor.h"
 #include "ImageProcessor.h"
 #include "ModelLoader.h"
 #include "VulkanContext.h"
@@ -11,9 +12,12 @@
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/mat4x4.hpp>
+#include <glm/matrix.hpp>
 #include <glm/vec3.hpp>
+#include <glm/vec4.hpp>
 #include <vk_mem_alloc.h>
 
+#include <array>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -24,9 +28,16 @@ namespace {
 constexpr VkFormat DepthFormat = VK_FORMAT_D32_SFLOAT;
 constexpr uint32_t MaxBindlessTextures = 16;
 constexpr const char* SamplersResource = "kSamplers";
-constexpr const char* TexturesResource = "kTextures2D";
+constexpr const char* CubeTexturesResource = "kTexturesCube";
+constexpr const char* Textures2DResource = "kTextures2D";
 
-glm::mat4 makeModelViewProjection(VkExtent2D extent, const float center[3], float radius) {
+struct Transform {
+    glm::mat4 mvp{1.0f};
+    glm::mat4 inverseViewProjection{1.0f};
+    float rotationAngle = 0.0f;
+};
+
+Transform makeTransform(VkExtent2D extent, const float center[3], float radius) {
     using Clock = std::chrono::steady_clock;
     static const Clock::time_point startTime = Clock::now();
 
@@ -34,39 +45,50 @@ glm::mat4 makeModelViewProjection(VkExtent2D extent, const float center[3], floa
     const float aspect = static_cast<float>(extent.width) / static_cast<float>(extent.height);
 
     glm::mat4 projection = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 1000.0f);
-    // GLM 默认按 OpenGL 裁剪空间生成矩阵；Vulkan 的 NDC Y 方向相反，这里翻回来。
     projection[1][1] *= -1.0f;
 
-    const float scale = 1.0f / radius;
     const float rotationAngle = glm::radians(35.0f) + seconds;
     const glm::mat4 model =
         glm::rotate(glm::mat4(1.0f), rotationAngle, glm::vec3(0.0f, 1.0f, 0.0f)) *
-        glm::scale(glm::mat4(1.0f), glm::vec3(scale)) *
+        glm::scale(glm::mat4(1.0f), glm::vec3(1.0f / radius)) *
         glm::translate(glm::mat4(1.0f), glm::vec3(-center[0], -center[1], -center[2]));
     const glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.05f, -3.0f));
-
-    return projection * view * model;
+    const glm::mat4 viewProjection = projection * view;
+    return {
+        .mvp = viewProjection * model,
+        .inverseViewProjection = glm::inverse(viewProjection),
+        .rotationAngle = rotationAngle,
+    };
 }
 
 } // namespace
 
-TexturedDuckCommandRecorder::TexturedDuckCommandRecorder(
+ReflectiveDuckCommandRecorder::ReflectiveDuckCommandRecorder(
     const VulkanContext& context,
     const VulkanSwapchain& swapchain,
     const VulkanShaderModule& vertexShader,
     const VulkanShaderModule& fragmentShader,
+    const VulkanShaderModule& skyVertexShader,
+    const VulkanShaderModule& skyFragmentShader,
     const std::filesystem::path& scenePath,
-    const std::filesystem::path& texturePath)
+    const std::filesystem::path& texturePath,
+    const std::filesystem::path& environmentPath)
     : context_(context),
       swapchain_(swapchain),
       sceneData_(loadSceneData(scenePath)),
-      texture_(context, ImageProcessor().loadRgba8(texturePath), "Rubber duck base color texture"),
+      texture_(context, ImageProcessor().loadRgba8(texturePath), "Reflective duck base color texture"),
+      environment_(context, loadEnvironment(environmentPath), "Piazza Bologni environment cube"),
       bindlessDescriptors_(
           context,
           {
-              .shaders = {&vertexShader, &fragmentShader},
-              .runtimeArrays = {{TexturesResource, MaxBindlessTextures}},
-              .debugName = "Textured duck bindless descriptors",
+              .shaders = {
+                  &vertexShader,
+                  &fragmentShader,
+                  &skyVertexShader,
+                  &skyFragmentShader,
+              },
+              .runtimeArrays = {{Textures2DResource, MaxBindlessTextures}},
+              .debugName = "Reflective duck bindless descriptors",
           }),
       vertexBuffer_(
           context,
@@ -75,7 +97,7 @@ TexturedDuckCommandRecorder::TexturedDuckCommandRecorder(
               .storage = BufferStorage::Device,
               .size = sizeof(Vertex) * sceneData_.vertices.size(),
               .data = sceneData_.vertices.data(),
-              .debugName = "Textured duck vertex buffer",
+              .debugName = "Reflective duck vertex buffer",
           }),
       indexBuffer_(
           context,
@@ -84,7 +106,7 @@ TexturedDuckCommandRecorder::TexturedDuckCommandRecorder(
               .storage = BufferStorage::Device,
               .size = sizeof(uint32_t) * sceneData_.indices.size(),
               .data = sceneData_.indices.data(),
-              .debugName = "Textured duck index buffer",
+              .debugName = "Reflective duck index buffer",
           }),
       imageLayouts_(swapchain.images().size(), VK_IMAGE_LAYOUT_UNDEFINED) {
     meshCenter_[0] = sceneData_.center[0];
@@ -98,32 +120,35 @@ TexturedDuckCommandRecorder::TexturedDuckCommandRecorder(
     }
 
     bindlessDescriptors_.fillSamplers(SamplersResource, texture_.sampler());
-    bindlessDescriptors_.writeTexture2D(TexturesResource, 0, texture_);
+    bindlessDescriptors_.writeSampler(SamplersResource, 1, environment_.sampler());
+    bindlessDescriptors_.writeTexture2D(Textures2DResource, 0, texture_);
+    bindlessDescriptors_.writeTextureCube(CubeTexturesResource, 0, environment_);
     createDepthAttachment();
-    createPipeline(vertexShader, fragmentShader);
+    createPipelines(vertexShader, fragmentShader, skyVertexShader, skyFragmentShader);
 }
 
-TexturedDuckCommandRecorder::~TexturedDuckCommandRecorder() {
-    pipeline_.reset();
+ReflectiveDuckCommandRecorder::~ReflectiveDuckCommandRecorder() {
+    duckPipeline_.reset();
+    skyPipeline_.reset();
     destroyDepthAttachment();
 }
 
-TexturedDuckCommandRecorder::SceneData TexturedDuckCommandRecorder::loadSceneData(
+ReflectiveDuckCommandRecorder::SceneData ReflectiveDuckCommandRecorder::loadSceneData(
     const std::filesystem::path& scenePath) {
     const ModelMesh mesh = ModelLoader::loadFirstMesh(scenePath);
-    if (mesh.positions.size() / 3u != mesh.texcoords.size() / 2u) {
-        throw std::runtime_error("Model positions and texture coordinates do not match: " + scenePath.string());
+    const size_t vertexCount = mesh.positions.size() / 3u;
+    if (vertexCount != mesh.normals.size() / 3u || vertexCount != mesh.texcoords.size() / 2u) {
+        throw std::runtime_error("Model vertex attributes do not match: " + scenePath.string());
     }
 
     SceneData data;
-    const size_t vertexCount = mesh.positions.size() / 3u;
     data.vertices.resize(vertexCount);
     for (size_t i = 0; i < vertexCount; ++i) {
-        data.vertices[i].position[0] = mesh.positions[i * 3u + 0u];
-        data.vertices[i].position[1] = mesh.positions[i * 3u + 1u];
-        data.vertices[i].position[2] = mesh.positions[i * 3u + 2u];
+        for (size_t component = 0; component < 3; ++component) {
+            data.vertices[i].position[component] = mesh.positions[i * 3u + component];
+            data.vertices[i].normal[component] = mesh.normals[i * 3u + component];
+        }
         data.vertices[i].uv[0] = mesh.texcoords[i * 2u + 0u];
-        // 当前贴图按图片左上角作为 V=0 存储；这里翻转 V，让 glTF UV 对到实际像素行。
         data.vertices[i].uv[1] = 1.0f - mesh.texcoords[i * 2u + 1u];
     }
 
@@ -135,21 +160,54 @@ TexturedDuckCommandRecorder::SceneData TexturedDuckCommandRecorder::loadSceneDat
     return data;
 }
 
-void TexturedDuckCommandRecorder::createPipeline(
+CubeMapImage ReflectiveDuckCommandRecorder::loadEnvironment(
+    const std::filesystem::path& environmentPath) {
+    const ImageProcessor imageProcessor;
+    const RgbaFloatImage equirectangular = imageProcessor.loadRgba32Float(environmentPath);
+    const CubeMapImage cubeMap = CubeMapProcessor().fromEquirectangular(equirectangular);
+
+    const std::filesystem::path outputDirectory = "debug-output/cubemap";
+    imageProcessor.saveHdr(
+        outputDirectory / "equirectangular-rgba32f.hdr",
+        equirectangular);
+
+    constexpr std::array<const char*, 6> FaceNames = {
+        "positive-x.hdr",
+        "negative-x.hdr",
+        "positive-y.hdr",
+        "negative-y.hdr",
+        "positive-z.hdr",
+        "negative-z.hdr",
+    };
+    const size_t faceFloatCount =
+        static_cast<size_t>(cubeMap.faceSize) * cubeMap.faceSize * 4u;
+    for (size_t face = 0; face < FaceNames.size(); ++face) {
+        const auto first = cubeMap.pixels.begin() + faceFloatCount * face;
+        RgbaFloatImage faceImage;
+        faceImage.width = cubeMap.faceSize;
+        faceImage.height = cubeMap.faceSize;
+        faceImage.pixels.assign(first, first + faceFloatCount);
+        imageProcessor.saveHdr(outputDirectory / FaceNames[face], faceImage);
+    }
+
+    return cubeMap;
+}
+
+void ReflectiveDuckCommandRecorder::createPipelines(
     const VulkanShaderModule& vertexShader,
-    const VulkanShaderModule& fragmentShader) {
-    pipeline_ = std::make_unique<VulkanRenderPipeline>(
+    const VulkanShaderModule& fragmentShader,
+    const VulkanShaderModule& skyVertexShader,
+    const VulkanShaderModule& skyFragmentShader) {
+    duckPipeline_ = std::make_unique<VulkanRenderPipeline>(
         context_,
         RenderPipelineDesc{
             .vertexShader = &vertexShader,
             .fragmentShader = &fragmentShader,
-            .vertexBindings = {
-                {
-                    .binding = 0,
-                    .stride = sizeof(Vertex),
-                    .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
-                },
-            },
+            .vertexBindings = {{
+                .binding = 0,
+                .stride = sizeof(Vertex),
+                .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+            }},
             .vertexAttributes = {
                 {
                     .location = 0,
@@ -159,6 +217,12 @@ void TexturedDuckCommandRecorder::createPipeline(
                 },
                 {
                     .location = 1,
+                    .binding = 0,
+                    .format = VK_FORMAT_R32G32B32_SFLOAT,
+                    .offset = offsetof(Vertex, normal),
+                },
+                {
+                    .location = 2,
                     .binding = 0,
                     .format = VK_FORMAT_R32G32_SFLOAT,
                     .offset = offsetof(Vertex, uv),
@@ -170,48 +234,44 @@ void TexturedDuckCommandRecorder::createPipeline(
             .depthTestEnabled = true,
             .depthWriteEnabled = true,
             .descriptorSetLayouts = {bindlessDescriptors_.layout()},
-            .debugName = "Textured duck pipeline",
+            .debugName = "Reflective duck pipeline",
+        });
+
+    // 天空只画一个全屏三角形，不需要 vertex buffer，也不参与深度测试。
+    skyPipeline_ = std::make_unique<VulkanRenderPipeline>(
+        context_,
+        RenderPipelineDesc{
+            .vertexShader = &skyVertexShader,
+            .fragmentShader = &skyFragmentShader,
+            .colorFormat = swapchain_.imageFormat(),
+            .depthFormat = DepthFormat,
+            .descriptorSetLayouts = {bindlessDescriptors_.layout()},
+            .debugName = "Cube map sky pipeline",
         });
 }
 
-void TexturedDuckCommandRecorder::record(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
+void ReflectiveDuckCommandRecorder::record(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
     APP_PROFILE_FUNCTION();
-    APP_PROFILE_GPU_ZONE(context_, commandBuffer, "Textured duck");
+    APP_PROFILE_GPU_ZONE(context_, commandBuffer, "Reflective duck");
     const VkImage image = swapchain_.images()[imageIndex];
-    const VkImageView imageView = swapchain_.imageViews()[imageIndex];
     const VkExtent2D extent = swapchain_.extent();
 
     vulkan_utils::transitionImage(
-        commandBuffer,
-        image,
-        VK_IMAGE_ASPECT_COLOR_BIT,
-        imageLayouts_[imageIndex],
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        0,
-        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+        commandBuffer, image, VK_IMAGE_ASPECT_COLOR_BIT,
+        imageLayouts_[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        0, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
     vulkan_utils::transitionImage(
-        commandBuffer,
-        depthImage_,
-        VK_IMAGE_ASPECT_DEPTH_BIT,
-        depthLayout_,
-        VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
-        0,
-        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT);
+        commandBuffer, depthImage_, VK_IMAGE_ASPECT_DEPTH_BIT,
+        depthLayout_, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+        0, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT);
 
-    const VkClearValue clearColor{
-        .color = {{0.45f, 0.45f, 0.45f, 1.0f}},
-    };
-    const VkClearValue clearDepth{
-        .depthStencil = {1.0f, 0},
-    };
-
+    const VkClearValue clearColor{.color = {{0.32f, 0.34f, 0.36f, 1.0f}}};
+    const VkClearValue clearDepth{.depthStencil = {1.0f, 0}};
     const VkRenderingAttachmentInfo colorAttachment{
         .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-        .imageView = imageView,
+        .imageView = swapchain_.imageViews()[imageIndex],
         .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
         .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -225,19 +285,14 @@ void TexturedDuckCommandRecorder::record(VkCommandBuffer commandBuffer, uint32_t
         .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
         .clearValue = clearDepth,
     };
-
     const VkRenderingInfo renderingInfo{
         .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
-        .renderArea = {
-            .offset = {0, 0},
-            .extent = extent,
-        },
+        .renderArea = {.offset = {0, 0}, .extent = extent},
         .layerCount = 1,
         .colorAttachmentCount = 1,
         .pColorAttachments = &colorAttachment,
         .pDepthAttachment = &depthAttachment,
     };
-
     vkCmdBeginRendering(commandBuffer, &renderingInfo);
 
     const VkViewport viewport{
@@ -248,67 +303,70 @@ void TexturedDuckCommandRecorder::record(VkCommandBuffer commandBuffer, uint32_t
         .minDepth = 0.0f,
         .maxDepth = 1.0f,
     };
+    const VkRect2D scissor{.offset = {0, 0}, .extent = extent};
     vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-
-    const VkRect2D scissor{
-        .offset = {0, 0},
-        .extent = extent,
-    };
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+    const Transform transform = makeTransform(extent, meshCenter_, meshRadius_);
+    struct SkyPushConstants {
+        glm::mat4 inverseViewProjection;
+        glm::vec4 cameraPosition;
+    };
+    const SkyPushConstants skyPushConstants{
+        .inverseViewProjection = transform.inverseViewProjection,
+        .cameraPosition = {0.0f, 0.05f, 3.0f, 0.0f},
+    };
+    skyPipeline_->bind(commandBuffer);
+    bindlessDescriptors_.bind(commandBuffer, skyPipeline_->layout());
+    vkCmdPushConstants(
+        commandBuffer, skyPipeline_->layout(), VK_SHADER_STAGE_FRAGMENT_BIT,
+        0, sizeof(SkyPushConstants), &skyPushConstants);
+    vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 
     const VkBuffer vertexBuffers[] = {vertexBuffer_.handle()};
     const VkDeviceSize vertexOffsets[] = {0};
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, vertexOffsets);
     vkCmdBindIndexBuffer(commandBuffer, indexBuffer_.handle(), 0, VK_INDEX_TYPE_UINT32);
-
-    pipeline_->bind(commandBuffer);
-    bindlessDescriptors_.bind(commandBuffer, pipeline_->layout());
+    duckPipeline_->bind(commandBuffer);
+    bindlessDescriptors_.bind(commandBuffer, duckPipeline_->layout());
 
     struct PushConstants {
         glm::mat4 mvp;
-        uint32_t textureId = 0;
+        glm::vec4 centerRadius;
+        glm::vec4 cameraAndAngle;
+        uint32_t texture2DId = 0;
+        uint32_t cubeTextureId = 0;
     };
     const PushConstants pushConstants{
-        .mvp = makeModelViewProjection(extent, meshCenter_, meshRadius_),
-        .textureId = 0,
+        .mvp = transform.mvp,
+        .centerRadius = {meshCenter_[0], meshCenter_[1], meshCenter_[2], meshRadius_},
+        .cameraAndAngle = {0.0f, 0.05f, 3.0f, transform.rotationAngle},
+        .texture2DId = 0,
+        .cubeTextureId = 0,
     };
     vkCmdPushConstants(
-        commandBuffer,
-        pipeline_->layout(),
+        commandBuffer, duckPipeline_->layout(),
         VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-        0,
-        sizeof(PushConstants),
-        &pushConstants);
+        0, sizeof(PushConstants), &pushConstants);
     vkCmdDrawIndexed(commandBuffer, indexCount_, 1, 0, 0, 0);
-
     vkCmdEndRendering(commandBuffer);
 
     vulkan_utils::transitionImage(
-        commandBuffer,
-        image,
-        VK_IMAGE_ASPECT_COLOR_BIT,
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-        0,
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
-
+        commandBuffer, image, VK_IMAGE_ASPECT_COLOR_BIT,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, 0,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
     imageLayouts_[imageIndex] = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
     depthLayout_ = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
 }
 
-void TexturedDuckCommandRecorder::createDepthAttachment() {
+void ReflectiveDuckCommandRecorder::createDepthAttachment() {
     const VkExtent2D extent = swapchain_.extent();
     const VkImageCreateInfo imageCreateInfo{
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         .imageType = VK_IMAGE_TYPE_2D,
         .format = DepthFormat,
-        .extent = {
-            .width = extent.width,
-            .height = extent.height,
-            .depth = 1,
-        },
+        .extent = {extent.width, extent.height, 1},
         .mipLevels = 1,
         .arrayLayers = 1,
         .samples = VK_SAMPLE_COUNT_1_BIT,
@@ -321,20 +379,14 @@ void TexturedDuckCommandRecorder::createDepthAttachment() {
         .usage = VMA_MEMORY_USAGE_AUTO,
         .preferredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
     };
-
     vulkan_utils::checkVk(
         vmaCreateImage(
-            context_.allocator(),
-            &imageCreateInfo,
-            &allocationCreateInfo,
-            &depthImage_,
-            &depthAllocation_,
-            nullptr),
+            context_.allocator(), &imageCreateInfo, &allocationCreateInfo,
+            &depthImage_, &depthAllocation_, nullptr),
         "vmaCreateImage");
     context_.setDebugObjectName(
-        VK_OBJECT_TYPE_IMAGE,
-        reinterpret_cast<uint64_t>(depthImage_),
-        "Textured duck depth image");
+        VK_OBJECT_TYPE_IMAGE, reinterpret_cast<uint64_t>(depthImage_),
+        "Reflective duck depth image");
 
     const VkImageViewCreateInfo viewCreateInfo{
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -353,17 +405,15 @@ void TexturedDuckCommandRecorder::createDepthAttachment() {
         vkCreateImageView(context_.device(), &viewCreateInfo, nullptr, &depthImageView_),
         "vkCreateImageView");
     context_.setDebugObjectName(
-        VK_OBJECT_TYPE_IMAGE_VIEW,
-        reinterpret_cast<uint64_t>(depthImageView_),
-        "Textured duck depth image view");
+        VK_OBJECT_TYPE_IMAGE_VIEW, reinterpret_cast<uint64_t>(depthImageView_),
+        "Reflective duck depth image view");
 }
 
-void TexturedDuckCommandRecorder::destroyDepthAttachment() {
+void ReflectiveDuckCommandRecorder::destroyDepthAttachment() {
     if (depthImageView_) {
         vkDestroyImageView(context_.device(), depthImageView_, nullptr);
         depthImageView_ = VK_NULL_HANDLE;
     }
-
     if (depthImage_ && depthAllocation_) {
         vmaDestroyImage(context_.allocator(), depthImage_, depthAllocation_);
         depthImage_ = VK_NULL_HANDLE;

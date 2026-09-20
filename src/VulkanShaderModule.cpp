@@ -69,6 +69,7 @@ VulkanShaderModule& VulkanShaderModule::operator=(VulkanShaderModule&& other) no
     handle_ = other.handle_;
     stage_ = other.stage_;
     pushConstantSize_ = other.pushConstantSize_;
+    descriptorBindings_ = std::move(other.descriptorBindings_);
 
     other.context_ = nullptr;
     other.handle_ = VK_NULL_HANDLE;
@@ -91,6 +92,10 @@ VkShaderStageFlagBits VulkanShaderModule::vkStage() const {
 
 uint32_t VulkanShaderModule::pushConstantSize() const {
     return pushConstantSize_;
+}
+
+const std::vector<ShaderDescriptorBinding>& VulkanShaderModule::descriptorBindings() const {
+    return descriptorBindings_;
 }
 
 VulkanShaderModule::VulkanShaderModule(
@@ -162,6 +167,7 @@ void VulkanShaderModule::createFromSpirv(const void* data, size_t byteSize, cons
     }
 
     pushConstantSize_ = reflection.pushConstantSize;
+    descriptorBindings_ = reflection.descriptorBindings;
 }
 
 void VulkanShaderModule::destroy() {

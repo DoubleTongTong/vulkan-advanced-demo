@@ -20,13 +20,15 @@ void transitionImage(
     VkAccessFlags srcAccess,
     VkAccessFlags dstAccess,
     VkPipelineStageFlags srcStage,
-    VkPipelineStageFlags dstStage) {
+    VkPipelineStageFlags dstStage,
+    uint32_t baseArrayLayer,
+    uint32_t layerCount) {
     const VkImageSubresourceRange subresourceRange{
         .aspectMask = aspectMask,
         .baseMipLevel = 0,
         .levelCount = 1,
-        .baseArrayLayer = 0,
-        .layerCount = 1,
+        .baseArrayLayer = baseArrayLayer,
+        .layerCount = layerCount,
     };
 
     const VkImageMemoryBarrier barrier{
