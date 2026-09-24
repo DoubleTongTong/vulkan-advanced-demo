@@ -2,14 +2,14 @@
 
 #include "ui/IImGuiPanel.h"
 
-class FramesPerSecondCounter;
+class FrameTimer;
 
 class FpsPanel final : public IImGuiPanel {
 public:
-    explicit FpsPanel(const FramesPerSecondCounter& counter) : counter_(counter) {}
+    explicit FpsPanel(const FrameTimer& timer) : timer_(timer) {}
 
     void draw() override;
 
 private:
-    const FramesPerSecondCounter& counter_;
+    const FrameTimer& timer_;
 };

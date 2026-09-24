@@ -1,5 +1,6 @@
+#include "Camera.h"
+#include "FrameTimer.h"
 #include "GlfwWindow.h"
-#include "FramesPerSecondCounter.h"
 #include "VulkanContext.h"
 #include "VulkanFrameSync.h"
 #include "VulkanImmediateCommands.h"
@@ -49,6 +50,8 @@ int main() {
 
         // ImmediateCommands 只负责命令缓冲的申请、提交和回收，不关心里面录制什么。
         VulkanImmediateCommands commands(vulkan, "Main immediate commands");
+        FirstPersonCamera camera;
+        GlfwCameraController cameraController(window.handle(), camera);
         ReflectiveDuckCommandRecorder reflectiveDuckRecorder(
             vulkan,
             swapchain,
@@ -56,21 +59,26 @@ int main() {
             fragmentShader,
             skyVertexShader,
             skyFragmentShader,
+            camera,
             RUBBER_DUCK_SCENE,
             RUBBER_DUCK_TEXTURE,
             PIAZZA_ENVIRONMENT);
         IRenderCommandRecorder& renderCommandRecorder = reflectiveDuckRecorder;
-        FramesPerSecondCounter fpsCounter;
+        FrameTimer frameTimer;
         VulkanImGuiOverlay imgui(vulkan, swapchain, window.handle());
-        imgui.addPanel(std::make_unique<FpsPanel>(fpsCounter));
+        imgui.addPanel(std::make_unique<FpsPanel>(frameTimer));
 
         VulkanFrameSync frameSync(vulkan, static_cast<uint32_t>(swapchain.images().size()));
-        fpsCounter.reset();
 
         while (!window.shouldClose()) {
             APP_PROFILE_FRAME();
             APP_PROFILE_SCOPE("Frame CPU");
             window.pollEvents();
+            frameTimer.beginFrame();
+            cameraController.update(
+                frameTimer.deltaSeconds(),
+                !imgui.wantsKeyboardInput(),
+                !imgui.wantsMouseInput());
 
             const VulkanFrameSync::Frame frame = frameSync.currentFrame();
             if (!frame.submitHandle.empty()) {
@@ -79,7 +87,7 @@ int main() {
 
             const VulkanSwapchain::AcquiredImage acquiredImage = swapchain.acquireNextImage(frame.imageAvailable);
             if (acquiredImage.result == VK_ERROR_OUT_OF_DATE_KHR) {
-                fpsCounter.tick(false);
+                frameTimer.finishFrame(false);
                 continue;
             }
 
@@ -104,7 +112,7 @@ int main() {
             }
 
             frameSync.advanceFrame();
-            fpsCounter.tick(true);
+            frameTimer.finishFrame(true);
         }
 
         commands.waitAll();

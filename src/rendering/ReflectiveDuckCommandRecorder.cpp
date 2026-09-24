@@ -1,5 +1,6 @@
 #include "rendering/ReflectiveDuckCommandRecorder.h"
 
+#include "Camera.h"
 #include "CubeMapProcessor.h"
 #include "ImageProcessor.h"
 #include "ModelLoader.h"
@@ -37,7 +38,11 @@ struct Transform {
     float rotationAngle = 0.0f;
 };
 
-Transform makeTransform(VkExtent2D extent, const float center[3], float radius) {
+Transform makeTransform(
+    VkExtent2D extent,
+    const float center[3],
+    float radius,
+    const Camera& camera) {
     using Clock = std::chrono::steady_clock;
     static const Clock::time_point startTime = Clock::now();
 
@@ -52,8 +57,7 @@ Transform makeTransform(VkExtent2D extent, const float center[3], float radius) 
         glm::rotate(glm::mat4(1.0f), rotationAngle, glm::vec3(0.0f, 1.0f, 0.0f)) *
         glm::scale(glm::mat4(1.0f), glm::vec3(1.0f / radius)) *
         glm::translate(glm::mat4(1.0f), glm::vec3(-center[0], -center[1], -center[2]));
-    const glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.05f, -3.0f));
-    const glm::mat4 viewProjection = projection * view;
+    const glm::mat4 viewProjection = projection * camera.viewMatrix();
     return {
         .mvp = viewProjection * model,
         .inverseViewProjection = glm::inverse(viewProjection),
@@ -70,11 +74,13 @@ ReflectiveDuckCommandRecorder::ReflectiveDuckCommandRecorder(
     const VulkanShaderModule& fragmentShader,
     const VulkanShaderModule& skyVertexShader,
     const VulkanShaderModule& skyFragmentShader,
+    const Camera& camera,
     const std::filesystem::path& scenePath,
     const std::filesystem::path& texturePath,
     const std::filesystem::path& environmentPath)
     : context_(context),
       swapchain_(swapchain),
+      camera_(camera),
       sceneData_(loadSceneData(scenePath)),
       texture_(context, ImageProcessor().loadRgba8(texturePath), "Reflective duck base color texture"),
       environment_(context, loadEnvironment(environmentPath), "Piazza Bologni environment cube"),
@@ -307,14 +313,15 @@ void ReflectiveDuckCommandRecorder::record(VkCommandBuffer commandBuffer, uint32
     vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-    const Transform transform = makeTransform(extent, meshCenter_, meshRadius_);
+    const Transform transform = makeTransform(extent, meshCenter_, meshRadius_, camera_);
+    const glm::vec3 cameraPosition = camera_.position();
     struct SkyPushConstants {
         glm::mat4 inverseViewProjection;
         glm::vec4 cameraPosition;
     };
     const SkyPushConstants skyPushConstants{
         .inverseViewProjection = transform.inverseViewProjection,
-        .cameraPosition = {0.0f, 0.05f, 3.0f, 0.0f},
+        .cameraPosition = glm::vec4(cameraPosition, 0.0f),
     };
     skyPipeline_->bind(commandBuffer);
     bindlessDescriptors_.bind(commandBuffer, skyPipeline_->layout());
@@ -340,7 +347,7 @@ void ReflectiveDuckCommandRecorder::record(VkCommandBuffer commandBuffer, uint32
     const PushConstants pushConstants{
         .mvp = transform.mvp,
         .centerRadius = {meshCenter_[0], meshCenter_[1], meshCenter_[2], meshRadius_},
-        .cameraAndAngle = {0.0f, 0.05f, 3.0f, transform.rotationAngle},
+        .cameraAndAngle = glm::vec4(cameraPosition, transform.rotationAngle),
         .texture2DId = 0,
         .cubeTextureId = 0,
     };

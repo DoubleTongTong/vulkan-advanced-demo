@@ -1,6 +1,6 @@
 #include "ui/FpsPanel.h"
 
-#include "FramesPerSecondCounter.h"
+#include "FrameTimer.h"
 
 #include <imgui.h>
 
@@ -21,9 +21,9 @@ void FpsPanel::draw() {
         ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing |
         ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoInputs;
     if (ImGui::Begin("##FPS", nullptr, flags)) {
-        if (counter_.fps() > 0.0) {
-            ImGui::Text("FPS   %.1f", counter_.fps());
-            ImGui::Text("Frame %.1f ms", 1000.0 / counter_.fps());
+        if (timer_.fps() > 0.0) {
+            ImGui::Text("FPS   %.1f", timer_.fps());
+            ImGui::Text("Frame %.1f ms", 1000.0 / timer_.fps());
         } else {
             ImGui::TextUnformatted("FPS   --");
             ImGui::TextUnformatted("Frame -- ms");

@@ -89,6 +89,14 @@ uint32_t VulkanImGuiOverlay::registerTexture(const VulkanTexture2D& texture) {
     return textureId;
 }
 
+bool VulkanImGuiOverlay::wantsKeyboardInput() const {
+    return ImGui::GetIO().WantCaptureKeyboard;
+}
+
+bool VulkanImGuiOverlay::wantsMouseInput() const {
+    return ImGui::GetIO().WantCaptureMouse;
+}
+
 void VulkanImGuiOverlay::createFontTexture() {
     // ImGui 生成 RGBA 字体图集；VulkanTexture2D 负责上传到 GPU。
     unsigned char* pixels = nullptr;

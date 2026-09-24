@@ -52,6 +52,8 @@ set(KTX_FEATURE_TESTS OFF CACHE BOOL "" FORCE)
 set(KTX_FEATURE_TOOLS OFF CACHE BOOL "" FORCE)
 set(KTX_FEATURE_LOADTEST_APPS OFF CACHE STRING "" FORCE)
 set(KTX_FEATURE_VK_UPLOAD OFF CACHE BOOL "" FORCE)
+# KTX 从已校验的源码归档构建，显式提供固定版本以避免依赖 .git 元数据。
+set(KTX_GIT_VERSION_FULL v4.4.0 CACHE STRING "" FORCE)
 
 # Assimp 只作为模型加载库使用，不构建工具、测试和安装目标。
 set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -87,8 +89,8 @@ FetchContent_Declare(
 
 FetchContent_Declare(
     ktx
-    GIT_REPOSITORY https://github.com/KhronosGroup/KTX-Software.git
-    GIT_TAG v4.4.0
+    URL https://codeload.github.com/KhronosGroup/KTX-Software/tar.gz/refs/tags/v4.4.0
+    URL_HASH SHA256=3585D76EDCDCBE3A671479686F8C81C1C10339F419E4B02A9A6F19CC6E4E0612
 )
 
 FetchContent_Declare(
@@ -247,6 +249,7 @@ target_link_libraries(texture_compressor
 )
 
 add_executable(vulkan_advanced_demo
+    src/Camera.cpp
     src/main.cpp
     src/GlfwWindow.cpp
     src/ModelLoader.cpp

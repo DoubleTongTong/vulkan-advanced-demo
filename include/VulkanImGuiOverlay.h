@@ -32,6 +32,8 @@ public:
 
     void addPanel(std::unique_ptr<IImGuiPanel> panel);
     uint32_t registerTexture(const VulkanTexture2D& texture);
+    bool wantsKeyboardInput() const;
+    bool wantsMouseInput() const;
     void record(VkCommandBuffer commandBuffer, uint32_t imageIndex, uint32_t frameIndex);
 
 private:
