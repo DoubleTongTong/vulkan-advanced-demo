@@ -253,6 +253,7 @@ add_executable(vulkan_advanced_demo
     src/main.cpp
     src/GlfwWindow.cpp
     src/ModelLoader.cpp
+    src/rendering/canvas/LineCanvas3D.cpp
     src/rendering/ReflectiveDuckCommandRecorder.cpp
     src/rendering/RubberDuckCommandRecorder.cpp
     src/rendering/TexturedDuckCommandRecorder.cpp
@@ -282,6 +283,7 @@ target_compile_definitions(vulkan_advanced_demo
     PRIVATE
         APP_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/reflective_duck"
         APP_SKY_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/cube_sky"
+        APP_LINE_CANVAS_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/canvas/line_3d"
         RUBBER_DUCK_SCENE="${RUBBER_DUCK_SCENE}"
         RUBBER_DUCK_TEXTURE="${RUBBER_DUCK_TEXTURE}"
         PIAZZA_ENVIRONMENT="${PIAZZA_ENVIRONMENT}"

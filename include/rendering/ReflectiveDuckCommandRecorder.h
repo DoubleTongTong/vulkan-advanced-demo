@@ -6,6 +6,7 @@
 #include "VulkanTexture2D.h"
 #include "VulkanTextureCube.h"
 #include "rendering/IRenderCommandRecorder.h"
+#include "rendering/canvas/LineCanvas3D.h"
 
 #include <vulkan/vulkan.h>
 
@@ -59,12 +60,14 @@ private:
         const VulkanShaderModule& fragmentShader,
         const VulkanShaderModule& skyVertexShader,
         const VulkanShaderModule& skyFragmentShader);
+    void buildDebugCanvas();
     void createDepthAttachment();
     void destroyDepthAttachment();
 
     const VulkanContext& context_;
     const VulkanSwapchain& swapchain_;
     const Camera& camera_;
+    LineCanvas3D lineCanvas_;
     SceneData sceneData_;
     VulkanTexture2D texture_;
     VulkanTextureCube environment_;

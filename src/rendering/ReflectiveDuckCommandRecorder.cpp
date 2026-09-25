@@ -49,7 +49,8 @@ Transform makeTransform(
     const float seconds = std::chrono::duration<float>(Clock::now() - startTime).count();
     const float aspect = static_cast<float>(extent.width) / static_cast<float>(extent.height);
 
-    glm::mat4 projection = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 1000.0f);
+    // 明确使用 Vulkan 的 [0, 1] 深度范围，避免依赖 GLM 的全局裁剪空间宏。
+    glm::mat4 projection = glm::perspectiveRH_ZO(glm::radians(45.0f), aspect, 0.1f, 1000.0f);
     projection[1][1] *= -1.0f;
 
     const float rotationAngle = glm::radians(35.0f) + seconds;
@@ -81,6 +82,7 @@ ReflectiveDuckCommandRecorder::ReflectiveDuckCommandRecorder(
     : context_(context),
       swapchain_(swapchain),
       camera_(camera),
+      lineCanvas_(context, swapchain, camera),
       sceneData_(loadSceneData(scenePath)),
       texture_(context, ImageProcessor().loadRgba8(texturePath), "Reflective duck base color texture"),
       environment_(context, loadEnvironment(environmentPath), "Piazza Bologni environment cube"),
@@ -256,6 +258,22 @@ void ReflectiveDuckCommandRecorder::createPipelines(
         });
 }
 
+void ReflectiveDuckCommandRecorder::buildDebugCanvas() {
+    // 这些辅助图元属于当前鸭子示例，而不是应用主循环的职责。
+    lineCanvas_.clear();
+    lineCanvas_.plane(
+        {0.0f, -1.05f, 0.0f},
+        {1.0f, 0.0f, 0.0f},
+        {0.0f, 0.0f, 1.0f},
+        12, 12, 6.0f, 6.0f,
+        {0.25f, 0.35f, 0.45f, 0.55f},
+        {0.55f, 0.70f, 0.90f, 0.9f});
+    lineCanvas_.box(glm::mat4(1.0f), {1.0f, 1.0f, 1.0f}, {1.0f, 0.75f, 0.15f, 1.0f});
+    lineCanvas_.line({0.0f, 0.0f, 0.0f}, {1.5f, 0.0f, 0.0f}, {1.0f, 0.1f, 0.1f, 1.0f});
+    lineCanvas_.line({0.0f, 0.0f, 0.0f}, {0.0f, 1.5f, 0.0f}, {0.1f, 1.0f, 0.1f, 1.0f});
+    lineCanvas_.line({0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.5f}, {0.1f, 0.4f, 1.0f, 1.0f});
+}
+
 void ReflectiveDuckCommandRecorder::record(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
     APP_PROFILE_FUNCTION();
     APP_PROFILE_GPU_ZONE(context_, commandBuffer, "Reflective duck");
@@ -356,6 +374,10 @@ void ReflectiveDuckCommandRecorder::record(VkCommandBuffer commandBuffer, uint32
         VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
         0, sizeof(PushConstants), &pushConstants);
     vkCmdDrawIndexed(commandBuffer, indexCount_, 1, 0, 0, 0);
+
+    // 线条画布复用当前颜色与深度附件，因此能正确被模型遮挡。
+    buildDebugCanvas();
+    lineCanvas_.record(commandBuffer, imageIndex);
     vkCmdEndRendering(commandBuffer);
 
     vulkan_utils::transitionImage(
