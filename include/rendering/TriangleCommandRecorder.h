@@ -19,7 +19,7 @@ public:
         const VulkanShaderModule& vertexShader,
         const VulkanShaderModule& fragmentShader);
 
-    void record(VkCommandBuffer commandBuffer, uint32_t imageIndex) override;
+    void record(const RenderFrameContext& frame) override;
 
 private:
     const VulkanSwapchain& swapchain_;

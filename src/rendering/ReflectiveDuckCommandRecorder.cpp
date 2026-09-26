@@ -1,6 +1,5 @@
 #include "rendering/ReflectiveDuckCommandRecorder.h"
 
-#include "Camera.h"
 #include "CubeMapProcessor.h"
 #include "ImageProcessor.h"
 #include "ModelLoader.h"
@@ -10,7 +9,6 @@
 #include "VulkanSwapchain.h"
 #include "VulkanUtils.h"
 
-#include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/mat4x4.hpp>
 #include <glm/matrix.hpp>
@@ -39,29 +37,21 @@ struct Transform {
 };
 
 Transform makeTransform(
-    VkExtent2D extent,
     const float center[3],
     float radius,
-    const Camera& camera) {
+    const RenderView& view) {
     using Clock = std::chrono::steady_clock;
     static const Clock::time_point startTime = Clock::now();
 
     const float seconds = std::chrono::duration<float>(Clock::now() - startTime).count();
-    const float aspect = static_cast<float>(extent.width) / static_cast<float>(extent.height);
-
-    // 明确使用 Vulkan 的 [0, 1] 深度范围，避免依赖 GLM 的全局裁剪空间宏。
-    glm::mat4 projection = glm::perspectiveRH_ZO(glm::radians(45.0f), aspect, 0.1f, 1000.0f);
-    projection[1][1] *= -1.0f;
-
     const float rotationAngle = glm::radians(35.0f) + seconds;
     const glm::mat4 model =
         glm::rotate(glm::mat4(1.0f), rotationAngle, glm::vec3(0.0f, 1.0f, 0.0f)) *
         glm::scale(glm::mat4(1.0f), glm::vec3(1.0f / radius)) *
         glm::translate(glm::mat4(1.0f), glm::vec3(-center[0], -center[1], -center[2]));
-    const glm::mat4 viewProjection = projection * camera.viewMatrix();
     return {
-        .mvp = viewProjection * model,
-        .inverseViewProjection = glm::inverse(viewProjection),
+        .mvp = view.viewProjection * model,
+        .inverseViewProjection = view.inverseViewProjection,
         .rotationAngle = rotationAngle,
     };
 }
@@ -75,14 +65,12 @@ ReflectiveDuckCommandRecorder::ReflectiveDuckCommandRecorder(
     const VulkanShaderModule& fragmentShader,
     const VulkanShaderModule& skyVertexShader,
     const VulkanShaderModule& skyFragmentShader,
-    const Camera& camera,
     const std::filesystem::path& scenePath,
     const std::filesystem::path& texturePath,
     const std::filesystem::path& environmentPath)
     : context_(context),
       swapchain_(swapchain),
-      camera_(camera),
-      lineCanvas_(context, swapchain, camera),
+      lineCanvas_(context, swapchain),
       sceneData_(loadSceneData(scenePath)),
       texture_(context, ImageProcessor().loadRgba8(texturePath), "Reflective duck base color texture"),
       environment_(context, loadEnvironment(environmentPath), "Piazza Bologni environment cube"),
@@ -274,7 +262,9 @@ void ReflectiveDuckCommandRecorder::buildDebugCanvas() {
     lineCanvas_.line({0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.5f}, {0.1f, 0.4f, 1.0f, 1.0f});
 }
 
-void ReflectiveDuckCommandRecorder::record(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
+void ReflectiveDuckCommandRecorder::record(const RenderFrameContext& frame) {
+    const VkCommandBuffer commandBuffer = frame.commandBuffer;
+    const uint32_t imageIndex = frame.imageIndex;
     APP_PROFILE_FUNCTION();
     APP_PROFILE_GPU_ZONE(context_, commandBuffer, "Reflective duck");
     const VkImage image = swapchain_.images()[imageIndex];
@@ -331,8 +321,8 @@ void ReflectiveDuckCommandRecorder::record(VkCommandBuffer commandBuffer, uint32
     vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-    const Transform transform = makeTransform(extent, meshCenter_, meshRadius_, camera_);
-    const glm::vec3 cameraPosition = camera_.position();
+    const Transform transform = makeTransform(meshCenter_, meshRadius_, frame.view);
+    const glm::vec3 cameraPosition = frame.view.cameraPosition;
     struct SkyPushConstants {
         glm::mat4 inverseViewProjection;
         glm::vec4 cameraPosition;
@@ -377,7 +367,7 @@ void ReflectiveDuckCommandRecorder::record(VkCommandBuffer commandBuffer, uint32
 
     // 线条画布复用当前颜色与深度附件，因此能正确被模型遮挡。
     buildDebugCanvas();
-    lineCanvas_.record(commandBuffer, imageIndex);
+    lineCanvas_.record(commandBuffer, imageIndex, frame.view);
     vkCmdEndRendering(commandBuffer);
 
     vulkan_utils::transitionImage(

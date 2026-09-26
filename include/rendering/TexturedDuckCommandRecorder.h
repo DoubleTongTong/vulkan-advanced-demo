@@ -29,7 +29,7 @@ public:
         const std::filesystem::path& texturePath);
     ~TexturedDuckCommandRecorder();
 
-    void record(VkCommandBuffer commandBuffer, uint32_t imageIndex) override;
+    void record(const RenderFrameContext& frame) override;
     const VulkanTexture2D& texture() const { return texture_; }
 
 private:

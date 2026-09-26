@@ -5,15 +5,18 @@
 #include "VulkanContext.h"
 #include "VulkanUtils.h"
 
-#include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/mat4x4.hpp>
 #include <glm/vec3.hpp>
 #include <vk_mem_alloc.h>
 
+#include <array>
+#include <algorithm>
 #include <chrono>
 #include <cstring>
+#include <memory>
 #include <stdexcept>
+#include <string>
 
 namespace {
 
@@ -24,30 +27,28 @@ std::vector<uint8_t> specializationData(uint32_t value) {
 }
 
 constexpr VkFormat DepthFormat = VK_FORMAT_D32_SFLOAT;
+constexpr std::array<float, 1> SimplificationRatios = {0.2f};
 
-glm::mat4 makeModelViewProjection(VkExtent2D extent, const float center[3], float radius) {
+glm::mat4 makeModelViewProjection(
+    const RenderView& view,
+    const float center[3],
+    float radius,
+    const glm::vec3& offset,
+    float scaleMultiplier) {
     using Clock = std::chrono::steady_clock;
     static const Clock::time_point startTime = Clock::now();
 
     const float seconds = std::chrono::duration<float>(Clock::now() - startTime).count();
-    const float aspect = static_cast<float>(extent.width) / static_cast<float>(extent.height);
-
-    glm::mat4 projection = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 1000.0f);
-    // GLM 的透视矩阵默认按 OpenGL 裁剪空间生成；Vulkan 的 NDC Y 方向相反，这里翻回来。
-    projection[1][1] *= -1.0f;
-
     // glTF 本身是 Y-up 坐标系，Assimp 已经把节点变换预处理到顶点里了。
     // 这里不再额外绕 X 轴转 90 度，只做居中、缩放和一个水平观赏角。
     const float scale = 1.0f / radius;
     const float rotationAngle = glm::radians(35.0f) + seconds;
     const glm::mat4 model =
+        glm::translate(glm::mat4(1.0f), offset) *
         glm::rotate(glm::mat4(1.0f), rotationAngle, glm::vec3(0.0f, 1.0f, 0.0f)) *
-        glm::scale(glm::mat4(1.0f), glm::vec3(scale)) *
+        glm::scale(glm::mat4(1.0f), glm::vec3(scale * scaleMultiplier)) *
         glm::translate(glm::mat4(1.0f), glm::vec3(-center[0], -center[1], -center[2]));
-    const glm::mat4 view =
-        glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.05f, -3.0f));
-
-    return projection * view * model;
+    return view.viewProjection * model;
 }
 
 } // namespace
@@ -63,7 +64,8 @@ RubberDuckCommandRecorder::RubberDuckCommandRecorder(
           swapchain,
           vertexShader,
           fragmentShader,
-          ModelLoader::loadFirstMesh(scenePath)) {
+          MeshLodGenerator::generate(
+              ModelLoader::loadFirstMesh(scenePath), SimplificationRatios)) {
 }
 
 RubberDuckCommandRecorder::RubberDuckCommandRecorder(
@@ -71,7 +73,7 @@ RubberDuckCommandRecorder::RubberDuckCommandRecorder(
     const VulkanSwapchain& swapchain,
     const VulkanShaderModule& vertexShader,
     const VulkanShaderModule& fragmentShader,
-    ModelMesh&& mesh)
+    MeshLodSet&& lodSet)
     : context_(context),
       swapchain_(swapchain),
       vertexBuffer_(
@@ -79,18 +81,9 @@ RubberDuckCommandRecorder::RubberDuckCommandRecorder(
           {
               .usage = BufferUsage_Vertex,
               .storage = BufferStorage::Device,
-              .size = sizeof(float) * mesh.positions.size(),
-              .data = mesh.positions.data(),
+              .size = sizeof(float) * lodSet.mesh.positions.size(),
+              .data = lodSet.mesh.positions.data(),
               .debugName = "Rubber duck vertex buffer",
-          }),
-      indexBuffer_(
-          context,
-          {
-              .usage = BufferUsage_Index,
-              .storage = BufferStorage::Device,
-              .size = sizeof(uint32_t) * mesh.indices.size(),
-              .data = mesh.indices.data(),
-              .debugName = "Rubber duck index buffer",
           }),
       solidPipeline_(
           context,
@@ -166,14 +159,14 @@ RubberDuckCommandRecorder::RubberDuckCommandRecorder(
               .specializationData = specializationData(1),
               .debugName = "Rubber duck wireframe pipeline",
           }),
-      meshCenter_{mesh.center[0], mesh.center[1], mesh.center[2]},
-      meshRadius_(mesh.radius),
-      indexCount_(static_cast<uint32_t>(mesh.indices.size())),
+      meshCenter_{lodSet.mesh.center[0], lodSet.mesh.center[1], lodSet.mesh.center[2]},
+      meshRadius_(lodSet.mesh.radius),
       imageLayouts_(swapchain.images().size(), VK_IMAGE_LAYOUT_UNDEFINED) {
     if ((swapchain.imageUsage() & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) == 0) {
         throw std::runtime_error("Swapchain images do not support color attachment usage.");
     }
 
+    createIndexBuffers(lodSet);
     createDepthAttachment();
 }
 
@@ -181,7 +174,32 @@ RubberDuckCommandRecorder::~RubberDuckCommandRecorder() {
     destroyDepthAttachment();
 }
 
-void RubberDuckCommandRecorder::record(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
+void RubberDuckCommandRecorder::createIndexBuffers(const MeshLodSet& lodSet) {
+    indexBuffers_.reserve(lodSet.levels.size());
+    indexCounts_.reserve(lodSet.levels.size());
+    for (size_t lodIndex = 0; lodIndex < lodSet.levels.size(); ++lodIndex) {
+        const std::vector<uint32_t>& indices = lodSet.levels[lodIndex].indices;
+        if (indices.empty()) {
+            throw std::runtime_error("Generated mesh LOD does not contain indices.");
+        }
+
+        const std::string debugName = "Rubber duck LOD " + std::to_string(lodIndex) + " index buffer";
+        indexBuffers_.push_back(std::make_unique<VulkanBuffer>(
+            context_,
+            BufferDesc{
+                .usage = BufferUsage_Index,
+                .storage = BufferStorage::Device,
+                .size = sizeof(uint32_t) * indices.size(),
+                .data = indices.data(),
+                .debugName = debugName.c_str(),
+            }));
+        indexCounts_.push_back(static_cast<uint32_t>(indices.size()));
+    }
+}
+
+void RubberDuckCommandRecorder::record(const RenderFrameContext& frame) {
+    const VkCommandBuffer commandBuffer = frame.commandBuffer;
+    const uint32_t imageIndex = frame.imageIndex;
     const VkImage image = swapchain_.images()[imageIndex];
     const VkImageView imageView = swapchain_.imageViews()[imageIndex];
     const VkExtent2D extent = swapchain_.extent();
@@ -264,28 +282,37 @@ void RubberDuckCommandRecorder::record(VkCommandBuffer commandBuffer, uint32_t i
     const VkBuffer vertexBuffers[] = {vertexBuffer_.handle()};
     const VkDeviceSize vertexOffsets[] = {0};
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, vertexOffsets);
-    vkCmdBindIndexBuffer(commandBuffer, indexBuffer_.handle(), 0, VK_INDEX_TYPE_UINT32);
+    constexpr std::array<glm::vec3, 2> LodOffsets = {
+        glm::vec3(-0.70f, 0.0f, 0.0f),
+        glm::vec3(0.70f, 0.0f, 0.0f),
+    };
+    const size_t lodCount = std::min(indexBuffers_.size(), LodOffsets.size());
+    for (size_t lodIndex = 0; lodIndex < lodCount; ++lodIndex) {
+        const glm::mat4 mvp = makeModelViewProjection(
+            frame.view, meshCenter_, meshRadius_, LodOffsets[lodIndex], 0.55f);
+        vkCmdBindIndexBuffer(
+            commandBuffer, indexBuffers_[lodIndex]->handle(), 0, VK_INDEX_TYPE_UINT32);
 
-    const glm::mat4 mvp = makeModelViewProjection(extent, meshCenter_, meshRadius_);
-    solidPipeline_.bind(commandBuffer);
-    vkCmdPushConstants(
-        commandBuffer,
-        solidPipeline_.layout(),
-        VK_SHADER_STAGE_VERTEX_BIT,
-        0,
-        sizeof(glm::mat4),
-        &mvp);
-    vkCmdDrawIndexed(commandBuffer, indexCount_, 1, 0, 0, 0);
+        solidPipeline_.bind(commandBuffer);
+        vkCmdPushConstants(
+            commandBuffer,
+            solidPipeline_.layout(),
+            VK_SHADER_STAGE_VERTEX_BIT,
+            0,
+            sizeof(glm::mat4),
+            &mvp);
+        vkCmdDrawIndexed(commandBuffer, indexCounts_[lodIndex], 1, 0, 0, 0);
 
-    wireframePipeline_.bind(commandBuffer);
-    vkCmdPushConstants(
-        commandBuffer,
-        wireframePipeline_.layout(),
-        VK_SHADER_STAGE_VERTEX_BIT,
-        0,
-        sizeof(glm::mat4),
-        &mvp);
-    vkCmdDrawIndexed(commandBuffer, indexCount_, 1, 0, 0, 0);
+        wireframePipeline_.bind(commandBuffer);
+        vkCmdPushConstants(
+            commandBuffer,
+            wireframePipeline_.layout(),
+            VK_SHADER_STAGE_VERTEX_BIT,
+            0,
+            sizeof(glm::mat4),
+            &mvp);
+        vkCmdDrawIndexed(commandBuffer, indexCounts_[lodIndex], 1, 0, 0, 0);
+    }
 
     vkCmdEndRendering(commandBuffer);
 

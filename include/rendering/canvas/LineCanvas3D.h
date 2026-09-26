@@ -1,5 +1,7 @@
 #pragma once
 
+#include "rendering/RenderFrameContext.h"
+
 #include <glm/mat4x4.hpp>
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
@@ -10,7 +12,6 @@
 #include <memory>
 #include <vector>
 
-class Camera;
 class VulkanBuffer;
 class VulkanContext;
 class VulkanRenderPipeline;
@@ -22,8 +23,7 @@ class LineCanvas3D {
 public:
     LineCanvas3D(
         const VulkanContext& context,
-        const VulkanSwapchain& swapchain,
-        const Camera& camera);
+        const VulkanSwapchain& swapchain);
 
     LineCanvas3D(const LineCanvas3D&) = delete;
     LineCanvas3D& operator=(const LineCanvas3D&) = delete;
@@ -50,7 +50,10 @@ public:
         const glm::vec4& color);
 
     // 调用方必须已开启与 swapchain/depth attachment 对应的 dynamic rendering。
-    void record(VkCommandBuffer commandBuffer, uint32_t imageIndex);
+    void record(
+        VkCommandBuffer commandBuffer,
+        uint32_t imageIndex,
+        const RenderView& view);
 
 private:
     struct Vertex {
@@ -59,11 +62,8 @@ private:
     };
 
     void ensureBuffer(uint32_t imageIndex, VkDeviceSize requiredSize);
-    glm::mat4 viewProjection() const;
-
     const VulkanContext& context_;
     const VulkanSwapchain& swapchain_;
-    const Camera& camera_;
     std::vector<Vertex> vertices_;
     std::vector<std::unique_ptr<VulkanBuffer>> buffers_;
     std::vector<VkDeviceSize> bufferCapacities_;

@@ -17,7 +17,6 @@
 class VulkanContext;
 class VulkanShaderModule;
 class VulkanSwapchain;
-class Camera;
 struct VmaAllocation_T;
 using VmaAllocation = VmaAllocation_T*;
 
@@ -30,13 +29,12 @@ public:
         const VulkanShaderModule& fragmentShader,
         const VulkanShaderModule& skyVertexShader,
         const VulkanShaderModule& skyFragmentShader,
-        const Camera& camera,
         const std::filesystem::path& scenePath,
         const std::filesystem::path& texturePath,
         const std::filesystem::path& environmentPath);
     ~ReflectiveDuckCommandRecorder();
 
-    void record(VkCommandBuffer commandBuffer, uint32_t imageIndex) override;
+    void record(const RenderFrameContext& frame) override;
 
 private:
     struct Vertex {
@@ -66,7 +64,6 @@ private:
 
     const VulkanContext& context_;
     const VulkanSwapchain& swapchain_;
-    const Camera& camera_;
     LineCanvas3D lineCanvas_;
     SceneData sceneData_;
     VulkanTexture2D texture_;

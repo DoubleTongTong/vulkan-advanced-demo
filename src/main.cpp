@@ -1,6 +1,6 @@
-#include "Camera.h"
 #include "FrameTimer.h"
 #include "GlfwWindow.h"
+#include "SceneCamera.h"
 #include "VulkanContext.h"
 #include "VulkanFrameSync.h"
 #include "VulkanImmediateCommands.h"
@@ -10,7 +10,7 @@
 #include "VulkanSwapchain.h"
 #include "VulkanUtils.h"
 #include "rendering/IRenderCommandRecorder.h"
-#include "rendering/ReflectiveDuckCommandRecorder.h"
+#include "rendering/RubberDuckCommandRecorder.h"
 #include "ui/FrameGraphPanel.h"
 #include "ui/FpsPanel.h"
 
@@ -29,16 +29,11 @@ int main() {
         // 先完成 Vulkan 最基础的上下文创建：instance、surface、device 和 graphics queue。
         VulkanContext vulkan(window.handle());
 
-        const std::filesystem::path shaderDir = APP_SHADER_DIR;
+        const std::filesystem::path shaderDir = APP_RUBBER_DUCK_SHADER_DIR;
         const VulkanShaderModule vertexShader =
             VulkanShaderModule::fromFile(vulkan, shaderDir / "main.vert");
         const VulkanShaderModule fragmentShader =
             VulkanShaderModule::fromFile(vulkan, shaderDir / "main.frag");
-        const std::filesystem::path skyShaderDir = APP_SKY_SHADER_DIR;
-        const VulkanShaderModule skyVertexShader =
-            VulkanShaderModule::fromFile(vulkan, skyShaderDir / "main.vert");
-        const VulkanShaderModule skyFragmentShader =
-            VulkanShaderModule::fromFile(vulkan, skyShaderDir / "main.frag");
 
         std::cout << "Created shader modules. Vertex push constants: "
                   << vertexShader.pushConstantSize()
@@ -51,24 +46,19 @@ int main() {
 
         // ImmediateCommands 只负责命令缓冲的申请、提交和回收，不关心里面录制什么。
         VulkanImmediateCommands commands(vulkan, "Main immediate commands");
-        FirstPersonCamera camera;
-        GlfwCameraController cameraController(window.handle(), camera);
-        ReflectiveDuckCommandRecorder reflectiveDuckRecorder(
+        // 相机是场景基础能力，而非某个鸭子示例的构造参数。
+        SceneCamera sceneCamera(window.handle());
+        RubberDuckCommandRecorder rubberDuckRecorder(
             vulkan,
             swapchain,
             vertexShader,
             fragmentShader,
-            skyVertexShader,
-            skyFragmentShader,
-            camera,
-            RUBBER_DUCK_SCENE,
-            RUBBER_DUCK_TEXTURE,
-            PIAZZA_ENVIRONMENT);
-        IRenderCommandRecorder& renderCommandRecorder = reflectiveDuckRecorder;
+            RUBBER_DUCK_SCENE);
+        IRenderCommandRecorder& renderCommandRecorder = rubberDuckRecorder;
         FrameTimer frameTimer;
         VulkanImGuiOverlay imgui(vulkan, swapchain, window.handle());
         imgui.addPanel(std::make_unique<FpsPanel>(frameTimer));
-        imgui.addPanel(std::make_unique<FrameGraphPanel>(frameTimer));
+        // imgui.addPanel(std::make_unique<FrameGraphPanel>(frameTimer));
 
         VulkanFrameSync frameSync(vulkan, static_cast<uint32_t>(swapchain.images().size()));
 
@@ -77,7 +67,7 @@ int main() {
             APP_PROFILE_SCOPE("Frame CPU");
             window.pollEvents();
             frameTimer.beginFrame();
-            cameraController.update(
+            sceneCamera.update(
                 frameTimer.deltaSeconds(),
                 !imgui.wantsKeyboardInput(),
                 !imgui.wantsMouseInput());
@@ -100,7 +90,12 @@ int main() {
             const VkSemaphore renderFinished = frameSync.renderFinishedSemaphore(acquiredImage.imageIndex);
             commands.setSubmitWaitSemaphore(frame.imageAvailable);
             const VulkanImmediateCommands::CommandBuffer& commandBuffer = commands.acquire();
-            renderCommandRecorder.record(commandBuffer.commandBuffer, acquiredImage.imageIndex);
+            const RenderView renderView = sceneCamera.makeRenderView(swapchain.extent());
+            renderCommandRecorder.record({
+                .commandBuffer = commandBuffer.commandBuffer,
+                .imageIndex = acquiredImage.imageIndex,
+                .view = renderView,
+            });
             imgui.record(commandBuffer.commandBuffer, acquiredImage.imageIndex, frame.frameIndex);
             commands.setSubmitSignalSemaphore(renderFinished);
             const VulkanImmediateCommands::SubmitHandle submitHandle = commands.submit(commandBuffer);

@@ -1,14 +1,10 @@
 #include "rendering/canvas/LineCanvas3D.h"
 
-#include "Camera.h"
 #include "VulkanBuffer.h"
 #include "VulkanContext.h"
 #include "VulkanRenderPipeline.h"
 #include "VulkanShaderModule.h"
 #include "VulkanSwapchain.h"
-
-#include <glm/ext/matrix_clip_space.hpp>
-#include <glm/gtc/matrix_transform.hpp>
 
 #include <algorithm>
 #include <array>
@@ -38,9 +34,8 @@ void appendBoxEdges(
 
 LineCanvas3D::LineCanvas3D(
     const VulkanContext& context,
-    const VulkanSwapchain& swapchain,
-    const Camera& camera)
-    : context_(context), swapchain_(swapchain), camera_(camera),
+    const VulkanSwapchain& swapchain)
+    : context_(context), swapchain_(swapchain),
       buffers_(swapchain.images().size()), bufferCapacities_(swapchain.images().size(), 0) {
     const std::filesystem::path shaderDirectory = APP_LINE_CANVAS_SHADER_DIR;
     const VulkanShaderModule vertexShader =
@@ -176,7 +171,10 @@ void LineCanvas3D::frustum(
     line(points[5], points[7], color);
 }
 
-void LineCanvas3D::record(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
+void LineCanvas3D::record(
+    VkCommandBuffer commandBuffer,
+    uint32_t imageIndex,
+    const RenderView& view) {
     if (vertices_.empty()) {
         return;
     }
@@ -206,7 +204,7 @@ void LineCanvas3D::record(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
     const VkDeviceSize offsets[] = {0};
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 
-    const glm::mat4 mvp = viewProjection();
+    const glm::mat4 mvp = view.viewProjection;
     vkCmdPushConstants(commandBuffer, pipeline_->layout(), VK_SHADER_STAGE_VERTEX_BIT,
         0, sizeof(mvp), &mvp);
     vkCmdDraw(commandBuffer, static_cast<uint32_t>(vertices_.size()), 1, 0, 0);
@@ -228,13 +226,4 @@ void LineCanvas3D::ensureBuffer(uint32_t imageIndex, VkDeviceSize requiredSize) 
             .debugName = "3D line canvas vertex buffer",
         });
     bufferCapacities_[imageIndex] = newCapacity;
-}
-
-glm::mat4 LineCanvas3D::viewProjection() const {
-    const VkExtent2D extent = swapchain_.extent();
-    const float aspect = static_cast<float>(extent.width) / static_cast<float>(extent.height);
-    // 与场景投影保持相同的 Vulkan [0, 1] 深度范围。
-    glm::mat4 projection = glm::perspectiveRH_ZO(glm::radians(45.0f), aspect, 0.1f, 1000.0f);
-    projection[1][1] *= -1.0f;
-    return projection * camera_.viewMatrix();
 }

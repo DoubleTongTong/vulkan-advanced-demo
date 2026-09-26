@@ -26,26 +26,21 @@ constexpr uint32_t MaxBindlessTextures = 16;
 constexpr const char* SamplersResource = "kSamplers";
 constexpr const char* TexturesResource = "kTextures2D";
 
-glm::mat4 makeModelViewProjection(VkExtent2D extent, const float center[3], float radius) {
+glm::mat4 makeModelViewProjection(
+    const RenderView& view,
+    const float center[3],
+    float radius) {
     using Clock = std::chrono::steady_clock;
     static const Clock::time_point startTime = Clock::now();
 
     const float seconds = std::chrono::duration<float>(Clock::now() - startTime).count();
-    const float aspect = static_cast<float>(extent.width) / static_cast<float>(extent.height);
-
-    glm::mat4 projection = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 1000.0f);
-    // GLM 默认按 OpenGL 裁剪空间生成矩阵；Vulkan 的 NDC Y 方向相反，这里翻回来。
-    projection[1][1] *= -1.0f;
-
     const float scale = 1.0f / radius;
     const float rotationAngle = glm::radians(35.0f) + seconds;
     const glm::mat4 model =
         glm::rotate(glm::mat4(1.0f), rotationAngle, glm::vec3(0.0f, 1.0f, 0.0f)) *
         glm::scale(glm::mat4(1.0f), glm::vec3(scale)) *
         glm::translate(glm::mat4(1.0f), glm::vec3(-center[0], -center[1], -center[2]));
-    const glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.05f, -3.0f));
-
-    return projection * view * model;
+    return view.viewProjection * model;
 }
 
 } // namespace
@@ -174,7 +169,9 @@ void TexturedDuckCommandRecorder::createPipeline(
         });
 }
 
-void TexturedDuckCommandRecorder::record(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
+void TexturedDuckCommandRecorder::record(const RenderFrameContext& frame) {
+    const VkCommandBuffer commandBuffer = frame.commandBuffer;
+    const uint32_t imageIndex = frame.imageIndex;
     APP_PROFILE_FUNCTION();
     APP_PROFILE_GPU_ZONE(context_, commandBuffer, "Textured duck");
     const VkImage image = swapchain_.images()[imageIndex];
@@ -269,7 +266,7 @@ void TexturedDuckCommandRecorder::record(VkCommandBuffer commandBuffer, uint32_t
         uint32_t textureId = 0;
     };
     const PushConstants pushConstants{
-        .mvp = makeModelViewProjection(extent, meshCenter_, meshRadius_),
+        .mvp = makeModelViewProjection(frame.view, meshCenter_, meshRadius_),
         .textureId = 0,
     };
     vkCmdPushConstants(

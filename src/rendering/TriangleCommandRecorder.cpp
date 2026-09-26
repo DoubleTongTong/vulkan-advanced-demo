@@ -26,7 +26,9 @@ TriangleCommandRecorder::TriangleCommandRecorder(
     }
 }
 
-void TriangleCommandRecorder::record(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
+void TriangleCommandRecorder::record(const RenderFrameContext& frame) {
+    const VkCommandBuffer commandBuffer = frame.commandBuffer;
+    const uint32_t imageIndex = frame.imageIndex;
     const VkImage image = swapchain_.images()[imageIndex];
     const VkImageView imageView = swapchain_.imageViews()[imageIndex];
     const VkExtent2D extent = swapchain_.extent();

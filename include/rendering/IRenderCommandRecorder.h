@@ -1,12 +1,10 @@
 #pragma once
 
-#include <vulkan/vulkan.h>
-
-#include <cstdint>
+#include "rendering/RenderFrameContext.h"
 
 class IRenderCommandRecorder {
 public:
     virtual ~IRenderCommandRecorder() = default;
 
-    virtual void record(VkCommandBuffer commandBuffer, uint32_t imageIndex) = 0;
+    virtual void record(const RenderFrameContext& frame) = 0;
 };

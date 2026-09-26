@@ -112,6 +112,12 @@ FetchContent_Declare(
 )
 
 FetchContent_Declare(
+    meshoptimizer
+    GIT_REPOSITORY https://github.com/zeux/meshoptimizer.git
+    GIT_TAG v0.23
+)
+
+FetchContent_Declare(
     glm
     GIT_REPOSITORY https://github.com/g-truc/glm.git
     GIT_TAG 1.0.1
@@ -172,6 +178,7 @@ FetchContent_MakeAvailable(ktx)
 FetchContent_MakeAvailable(stb)
 FetchContent_MakeAvailable(vma)
 FetchContent_MakeAvailable(assimp)
+FetchContent_MakeAvailable(meshoptimizer)
 FetchContent_MakeAvailable(glm)
 FetchContent_MakeAvailable(imgui)
 FetchContent_MakeAvailable(implot)
@@ -240,6 +247,25 @@ target_link_libraries(image_processor
         glm::glm
 )
 
+add_library(mesh_lod_generator
+    src/MeshLodGenerator.cpp
+)
+
+target_include_directories(mesh_lod_generator
+    PUBLIC
+        include
+)
+
+target_compile_options(mesh_lod_generator
+    PRIVATE
+        $<$<CXX_COMPILER_ID:MSVC>:/utf-8>
+)
+
+target_link_libraries(mesh_lod_generator
+    PUBLIC
+        meshoptimizer
+)
+
 add_library(texture_compressor
     src/TextureCompressor.cpp
 )
@@ -264,6 +290,7 @@ target_link_libraries(texture_compressor
 
 add_executable(vulkan_advanced_demo
     src/Camera.cpp
+    src/SceneCamera.cpp
     src/main.cpp
     src/GlfwWindow.cpp
     src/ModelLoader.cpp
@@ -299,6 +326,7 @@ add_executable(vulkan_advanced_demo
 target_compile_definitions(vulkan_advanced_demo
     PRIVATE
         APP_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/reflective_duck"
+        APP_RUBBER_DUCK_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/rubber_duck"
         APP_SKY_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/cube_sky"
         APP_LINE_CANVAS_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/canvas/line_3d"
         RUBBER_DUCK_SCENE="${RUBBER_DUCK_SCENE}"
@@ -325,6 +353,7 @@ target_link_libraries(vulkan_advanced_demo
         assimp
         glm::glm
         image_processor
+        mesh_lod_generator
         imgui_glfw
         implot_library
         shader_compiler
