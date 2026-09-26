@@ -13,6 +13,7 @@
 
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
+#include <implot.h>
 
 #include <algorithm>
 #include <cstddef>
@@ -42,6 +43,7 @@ VulkanImGuiOverlay::VulkanImGuiOverlay(
     : context_(context), swapchain_(swapchain) {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
+    ImPlot::CreateContext();
     bool glfwInitialized = false;
     try {
         glfwInitialized = ImGui_ImplGlfw_InitForVulkan(window, true);
@@ -59,6 +61,7 @@ VulkanImGuiOverlay::VulkanImGuiOverlay(
         if (glfwInitialized) {
             ImGui_ImplGlfw_Shutdown();
         }
+        ImPlot::DestroyContext();
         ImGui::DestroyContext();
         throw;
     }
@@ -67,6 +70,7 @@ VulkanImGuiOverlay::VulkanImGuiOverlay(
 VulkanImGuiOverlay::~VulkanImGuiOverlay() {
     panels_.clear();
     ImGui_ImplGlfw_Shutdown();
+    ImPlot::DestroyContext();
     ImGui::DestroyContext();
 }
 

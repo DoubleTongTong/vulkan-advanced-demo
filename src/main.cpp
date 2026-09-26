@@ -11,6 +11,7 @@
 #include "VulkanUtils.h"
 #include "rendering/IRenderCommandRecorder.h"
 #include "rendering/ReflectiveDuckCommandRecorder.h"
+#include "ui/FrameGraphPanel.h"
 #include "ui/FpsPanel.h"
 
 #include <cstdint>
@@ -67,6 +68,7 @@ int main() {
         FrameTimer frameTimer;
         VulkanImGuiOverlay imgui(vulkan, swapchain, window.handle());
         imgui.addPanel(std::make_unique<FpsPanel>(frameTimer));
+        imgui.addPanel(std::make_unique<FrameGraphPanel>(frameTimer));
 
         VulkanFrameSync frameSync(vulkan, static_cast<uint32_t>(swapchain.images().size()));
 

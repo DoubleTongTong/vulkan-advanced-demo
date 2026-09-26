@@ -123,6 +123,12 @@ FetchContent_Declare(
     GIT_TAG v1.91.9b
 )
 
+FetchContent_Declare(
+    implot
+    GIT_REPOSITORY https://github.com/epezent/implot.git
+    GIT_TAG v0.16
+)
+
 if(APP_ENABLE_TRACY)
     set(TRACY_ENABLE ON CACHE BOOL "" FORCE)
     FetchContent_Declare(
@@ -168,6 +174,7 @@ FetchContent_MakeAvailable(vma)
 FetchContent_MakeAvailable(assimp)
 FetchContent_MakeAvailable(glm)
 FetchContent_MakeAvailable(imgui)
+FetchContent_MakeAvailable(implot)
 if(APP_ENABLE_TRACY)
     FetchContent_MakeAvailable(tracy)
 endif()
@@ -182,6 +189,13 @@ add_library(imgui_glfw STATIC
 )
 target_include_directories(imgui_glfw PUBLIC ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
 target_link_libraries(imgui_glfw PUBLIC glfw)
+
+add_library(implot_library STATIC
+    ${implot_SOURCE_DIR}/implot.cpp
+    ${implot_SOURCE_DIR}/implot_items.cpp
+)
+target_include_directories(implot_library PUBLIC ${implot_SOURCE_DIR})
+target_link_libraries(implot_library PUBLIC imgui_glfw)
 
 add_library(shader_compiler
     src/ShaderCompiler.cpp
@@ -259,6 +273,9 @@ add_executable(vulkan_advanced_demo
     src/rendering/TexturedDuckCommandRecorder.cpp
     src/rendering/TriangleCommandRecorder.cpp
     src/ui/FpsPanel.cpp
+    src/ui/FrameGraphPanel.cpp
+    src/ui/canvas/LineCanvas2D.cpp
+    src/ui/graph/ScrollingGraph.cpp
     src/ui/ImGuiDemoPanel.cpp
     src/ui/TextureViewerPanel.cpp
     src/VmaImplementation.cpp
@@ -309,6 +326,7 @@ target_link_libraries(vulkan_advanced_demo
         glm::glm
         image_processor
         imgui_glfw
+        implot_library
         shader_compiler
         Vulkan::Vulkan
 )
