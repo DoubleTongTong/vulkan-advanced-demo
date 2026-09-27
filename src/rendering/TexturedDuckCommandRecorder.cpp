@@ -1,7 +1,7 @@
 #include "rendering/TexturedDuckCommandRecorder.h"
 
 #include "ImageProcessor.h"
-#include "ModelLoader.h"
+#include "mesh/ModelLoader.h"
 #include "VulkanContext.h"
 #include "VulkanProfiler.h"
 #include "VulkanShaderModule.h"
@@ -56,7 +56,7 @@ TexturedDuckCommandRecorder::TexturedDuckCommandRecorder(
       swapchain_(swapchain),
       sceneData_(loadSceneData(scenePath)),
       texture_(context, ImageProcessor().loadRgba8(texturePath), "Rubber duck base color texture"),
-      bindlessDescriptors_(
+      textureDescriptors_(
           context,
           {
               .shaders = {&vertexShader, &fragmentShader},
@@ -92,8 +92,8 @@ TexturedDuckCommandRecorder::TexturedDuckCommandRecorder(
         throw std::runtime_error("Swapchain images do not support color attachment usage.");
     }
 
-    bindlessDescriptors_.fillSamplers(SamplersResource, texture_.sampler());
-    bindlessDescriptors_.writeTexture2D(TexturesResource, 0, texture_);
+    textureDescriptors_.fillSamplers(SamplersResource, texture_.sampler());
+    textureDescriptors_.writeTexture2D(TexturesResource, 0, texture_);
     createDepthAttachment();
     createPipeline(vertexShader, fragmentShader);
 }
@@ -105,7 +105,7 @@ TexturedDuckCommandRecorder::~TexturedDuckCommandRecorder() {
 
 TexturedDuckCommandRecorder::SceneData TexturedDuckCommandRecorder::loadSceneData(
     const std::filesystem::path& scenePath) {
-    const ModelMesh mesh = ModelLoader::loadFirstMesh(scenePath);
+    const MeshData mesh = ModelLoader::loadFirstMesh(scenePath);
     if (mesh.positions.size() / 3u != mesh.texcoords.size() / 2u) {
         throw std::runtime_error("Model positions and texture coordinates do not match: " + scenePath.string());
     }
@@ -164,7 +164,7 @@ void TexturedDuckCommandRecorder::createPipeline(
             .cullMode = VK_CULL_MODE_BACK_BIT,
             .depthTestEnabled = true,
             .depthWriteEnabled = true,
-            .descriptorSetLayouts = {bindlessDescriptors_.layout()},
+            .descriptorSetLayouts = {textureDescriptors_.layout()},
             .debugName = "Textured duck pipeline",
         });
 }
@@ -259,7 +259,7 @@ void TexturedDuckCommandRecorder::record(const RenderFrameContext& frame) {
     vkCmdBindIndexBuffer(commandBuffer, indexBuffer_.handle(), 0, VK_INDEX_TYPE_UINT32);
 
     pipeline_->bind(commandBuffer);
-    bindlessDescriptors_.bind(commandBuffer, pipeline_->layout());
+    textureDescriptors_.bind(commandBuffer, pipeline_->layout());
 
     struct PushConstants {
         glm::mat4 mvp;

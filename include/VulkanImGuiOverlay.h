@@ -10,7 +10,7 @@
 #include <memory>
 #include <vector>
 
-class VulkanBindlessDescriptorSet;
+class TextureDescriptorSet;
 class VulkanContext;
 class VulkanRenderPipeline;
 class VulkanSwapchain;
@@ -52,7 +52,7 @@ private:
     const VulkanContext& context_;
     const VulkanSwapchain& swapchain_;
     std::unique_ptr<VulkanTexture2D> fontTexture_;
-    std::unique_ptr<VulkanBindlessDescriptorSet> descriptors_;
+    std::unique_ptr<TextureDescriptorSet> descriptors_;
     std::unique_ptr<VulkanRenderPipeline> pipeline_;
     std::array<FrameBuffers, VulkanFrameSync::MaxFramesInFlight> frameBuffers_{};
     std::vector<std::unique_ptr<IImGuiPanel>> panels_;

@@ -10,7 +10,7 @@
 #include "VulkanSwapchain.h"
 #include "VulkanUtils.h"
 #include "rendering/IRenderCommandRecorder.h"
-#include "rendering/RubberDuckCommandRecorder.h"
+#include "rendering/VertexPullingDuckCommandRecorder.h"
 #include "ui/FrameGraphPanel.h"
 #include "ui/FpsPanel.h"
 
@@ -29,7 +29,7 @@ int main() {
         // 先完成 Vulkan 最基础的上下文创建：instance、surface、device 和 graphics queue。
         VulkanContext vulkan(window.handle());
 
-        const std::filesystem::path shaderDir = APP_RUBBER_DUCK_SHADER_DIR;
+        const std::filesystem::path shaderDir = APP_VERTEX_PULLING_DUCK_SHADER_DIR;
         const VulkanShaderModule vertexShader =
             VulkanShaderModule::fromFile(vulkan, shaderDir / "main.vert");
         const VulkanShaderModule fragmentShader =
@@ -48,13 +48,14 @@ int main() {
         VulkanImmediateCommands commands(vulkan, "Main immediate commands");
         // 相机是场景基础能力，而非某个鸭子示例的构造参数。
         SceneCamera sceneCamera(window.handle());
-        RubberDuckCommandRecorder rubberDuckRecorder(
+        VertexPullingDuckCommandRecorder vertexPullingDuckRecorder(
             vulkan,
             swapchain,
             vertexShader,
             fragmentShader,
-            RUBBER_DUCK_SCENE);
-        IRenderCommandRecorder& renderCommandRecorder = rubberDuckRecorder;
+            RUBBER_DUCK_SCENE,
+            RUBBER_DUCK_TEXTURE);
+        IRenderCommandRecorder& renderCommandRecorder = vertexPullingDuckRecorder;
         FrameTimer frameTimer;
         VulkanImGuiOverlay imgui(vulkan, swapchain, window.handle());
         imgui.addPanel(std::make_unique<FpsPanel>(frameTimer));

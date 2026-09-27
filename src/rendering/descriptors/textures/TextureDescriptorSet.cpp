@@ -1,4 +1,4 @@
-#include "VulkanBindlessDescriptorSet.h"
+#include "rendering/descriptors/textures/TextureDescriptorSet.h"
 
 #include "VulkanContext.h"
 #include "VulkanShaderModule.h"
@@ -13,7 +13,7 @@
 
 namespace {
 
-constexpr VkDescriptorBindingFlags BindlessSampledImageFlags =
+constexpr VkDescriptorBindingFlags TextureArrayBindingFlags =
     VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |
     VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT |
     VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
@@ -24,15 +24,17 @@ VkDescriptorType toVkDescriptorType(ShaderDescriptorType type) {
         return VK_DESCRIPTOR_TYPE_SAMPLER;
     case ShaderDescriptorType::SampledImage:
         return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    case ShaderDescriptorType::StorageBuffer:
+        break;
     }
     throw std::runtime_error("Unsupported reflected descriptor type.");
 }
 
 } // namespace
 
-VulkanBindlessDescriptorSet::VulkanBindlessDescriptorSet(
+TextureDescriptorSet::TextureDescriptorSet(
     const VulkanContext& context,
-    const BindlessDescriptorSetDesc& desc)
+    const TextureDescriptorSetDesc& desc)
     : context_(&context) {
     reflectBindings(desc);
     validateLimits();
@@ -40,17 +42,15 @@ VulkanBindlessDescriptorSet::VulkanBindlessDescriptorSet(
     createPoolAndSet(desc.debugName);
 }
 
-VulkanBindlessDescriptorSet::~VulkanBindlessDescriptorSet() {
+TextureDescriptorSet::~TextureDescriptorSet() {
     destroy();
 }
 
-VulkanBindlessDescriptorSet::VulkanBindlessDescriptorSet(
-    VulkanBindlessDescriptorSet&& other) noexcept {
+TextureDescriptorSet::TextureDescriptorSet(TextureDescriptorSet&& other) noexcept {
     *this = std::move(other);
 }
 
-VulkanBindlessDescriptorSet& VulkanBindlessDescriptorSet::operator=(
-    VulkanBindlessDescriptorSet&& other) noexcept {
+TextureDescriptorSet& TextureDescriptorSet::operator=(TextureDescriptorSet&& other) noexcept {
     if (this == &other) {
         return *this;
     }
@@ -69,15 +69,15 @@ VulkanBindlessDescriptorSet& VulkanBindlessDescriptorSet::operator=(
     return *this;
 }
 
-VkDescriptorSetLayout VulkanBindlessDescriptorSet::layout() const {
+VkDescriptorSetLayout TextureDescriptorSet::layout() const {
     return layout_;
 }
 
-VkDescriptorSet VulkanBindlessDescriptorSet::set() const {
+VkDescriptorSet TextureDescriptorSet::set() const {
     return set_;
 }
 
-uint32_t VulkanBindlessDescriptorSet::capacity(std::string_view name) const {
+uint32_t TextureDescriptorSet::capacity(std::string_view name) const {
     const auto it = std::find_if(bindings_.begin(), bindings_.end(), [name](const Binding& item) {
         return item.name == name;
     });
@@ -87,7 +87,7 @@ uint32_t VulkanBindlessDescriptorSet::capacity(std::string_view name) const {
     return it->descriptorCount;
 }
 
-void VulkanBindlessDescriptorSet::fillSamplers(std::string_view name, VkSampler sampler) {
+void TextureDescriptorSet::fillSamplers(std::string_view name, VkSampler sampler) {
     const Binding& item = binding(name, VK_DESCRIPTOR_TYPE_SAMPLER);
     const uint32_t count = item.descriptorCount;
     std::vector<VkDescriptorImageInfo> samplerInfos(count);
@@ -106,13 +106,13 @@ void VulkanBindlessDescriptorSet::fillSamplers(std::string_view name, VkSampler 
     vkUpdateDescriptorSets(context_->device(), 1, &write, 0, nullptr);
 }
 
-void VulkanBindlessDescriptorSet::writeSampler(
+void TextureDescriptorSet::writeSampler(
     std::string_view name,
     uint32_t index,
     VkSampler sampler) {
     const Binding& item = binding(name, VK_DESCRIPTOR_TYPE_SAMPLER);
     if (index >= item.descriptorCount) {
-        throw std::out_of_range("Bindless sampler index is out of range.");
+        throw std::out_of_range("Texture descriptor sampler index is out of range.");
     }
 
     const VkDescriptorImageInfo samplerInfo{.sampler = sampler};
@@ -128,7 +128,7 @@ void VulkanBindlessDescriptorSet::writeSampler(
     vkUpdateDescriptorSets(context_->device(), 1, &write, 0, nullptr);
 }
 
-void VulkanBindlessDescriptorSet::writeTexture2D(
+void TextureDescriptorSet::writeTexture2D(
     std::string_view name,
     uint32_t index,
     const VulkanTexture2D& texture) {
@@ -136,7 +136,7 @@ void VulkanBindlessDescriptorSet::writeTexture2D(
         name, index, texture.imageView(), texture.layout(), ShaderImageDimension::Image2D);
 }
 
-void VulkanBindlessDescriptorSet::writeTextureCube(
+void TextureDescriptorSet::writeTextureCube(
     std::string_view name,
     uint32_t index,
     const VulkanTextureCube& texture) {
@@ -144,7 +144,7 @@ void VulkanBindlessDescriptorSet::writeTextureCube(
         name, index, texture.imageView(), texture.layout(), ShaderImageDimension::Cube);
 }
 
-void VulkanBindlessDescriptorSet::bind(
+void TextureDescriptorSet::bind(
     VkCommandBuffer commandBuffer,
     VkPipelineLayout pipelineLayout,
     uint32_t setIndex) const {
@@ -159,7 +159,7 @@ void VulkanBindlessDescriptorSet::bind(
         nullptr);
 }
 
-const VulkanBindlessDescriptorSet::Binding& VulkanBindlessDescriptorSet::binding(
+const TextureDescriptorSet::Binding& TextureDescriptorSet::binding(
     std::string_view name,
     VkDescriptorType expectedType,
     ShaderImageDimension expectedDimension) const {
@@ -175,7 +175,7 @@ const VulkanBindlessDescriptorSet::Binding& VulkanBindlessDescriptorSet::binding
     return *it;
 }
 
-void VulkanBindlessDescriptorSet::writeSampledImage(
+void TextureDescriptorSet::writeSampledImage(
     std::string_view name,
     uint32_t index,
     VkImageView view,
@@ -183,7 +183,7 @@ void VulkanBindlessDescriptorSet::writeSampledImage(
     ShaderImageDimension dimension) {
     const Binding& item = binding(name, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, dimension);
     if (index >= item.descriptorCount) {
-        throw std::out_of_range("Bindless sampled image index is out of range.");
+        throw std::out_of_range("Texture descriptor sampled image index is out of range.");
     }
 
     const VkDescriptorImageInfo imageInfo{
@@ -202,9 +202,9 @@ void VulkanBindlessDescriptorSet::writeSampledImage(
     vkUpdateDescriptorSets(context_->device(), 1, &write, 0, nullptr);
 }
 
-void VulkanBindlessDescriptorSet::reflectBindings(const BindlessDescriptorSetDesc& desc) {
+void TextureDescriptorSet::reflectBindings(const TextureDescriptorSetDesc& desc) {
     if (desc.shaders.empty()) {
-        throw std::runtime_error("Bindless descriptor reflection requires at least one shader.");
+        throw std::runtime_error("Texture descriptor reflection requires at least one shader.");
     }
 
     for (const VulkanShaderModule* shader : desc.shaders) {
@@ -229,7 +229,7 @@ void VulkanBindlessDescriptorSet::reflectBindings(const BindlessDescriptorSetDes
                 const auto capacity = std::find_if(
                     desc.runtimeArrays.begin(),
                     desc.runtimeArrays.end(),
-                    [&reflected](const BindlessRuntimeArrayDesc& item) {
+                    [&reflected](const TextureRuntimeArrayDesc& item) {
                         return item.name == reflected.name;
                     });
                 if (capacity == desc.runtimeArrays.end() || capacity->capacity == 0) {
@@ -275,7 +275,7 @@ void VulkanBindlessDescriptorSet::reflectBindings(const BindlessDescriptorSetDes
     std::ranges::sort(bindings_, {}, &Binding::binding);
 }
 
-void VulkanBindlessDescriptorSet::validateLimits() const {
+void TextureDescriptorSet::validateLimits() const {
     uint64_t sampledImageCount = 0;
     uint64_t samplerCount = 0;
     for (const Binding& item : bindings_) {
@@ -288,14 +288,14 @@ void VulkanBindlessDescriptorSet::validateLimits() const {
 
     const VulkanDescriptorIndexingLimits limits = context_->descriptorIndexingLimits();
     if (sampledImageCount > limits.maxUpdateAfterBindSampledImages) {
-        throw std::runtime_error("Bindless sampled image capacity exceeds the device limit.");
+        throw std::runtime_error("Texture sampled image capacity exceeds the device limit.");
     }
     if (samplerCount > limits.maxUpdateAfterBindSamplers) {
-        throw std::runtime_error("Bindless sampler capacity exceeds the device limit.");
+        throw std::runtime_error("Texture sampler capacity exceeds the device limit.");
     }
 }
 
-void VulkanBindlessDescriptorSet::createLayout(const char* debugName) {
+void TextureDescriptorSet::createLayout(const char* debugName) {
     std::vector<VkDescriptorSetLayoutBinding> layoutBindings;
     std::vector<VkDescriptorBindingFlags> bindingFlags;
     layoutBindings.reserve(bindings_.size());
@@ -310,7 +310,7 @@ void VulkanBindlessDescriptorSet::createLayout(const char* debugName) {
         });
         bindingFlags.push_back(
             item.descriptorType == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE
-                ? BindlessSampledImageFlags
+                ? TextureArrayBindingFlags
                 : 0);
     }
 
@@ -335,7 +335,7 @@ void VulkanBindlessDescriptorSet::createLayout(const char* debugName) {
         debugName);
 }
 
-void VulkanBindlessDescriptorSet::createPoolAndSet(const char* debugName) {
+void TextureDescriptorSet::createPoolAndSet(const char* debugName) {
     std::vector<VkDescriptorPoolSize> poolSizes;
     for (const Binding& binding : bindings_) {
         const auto existing = std::find_if(
@@ -375,7 +375,7 @@ void VulkanBindlessDescriptorSet::createPoolAndSet(const char* debugName) {
         "vkAllocateDescriptorSets");
 }
 
-void VulkanBindlessDescriptorSet::destroy() {
+void TextureDescriptorSet::destroy() {
     if (!context_) {
         return;
     }

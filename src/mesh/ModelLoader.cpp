@@ -1,4 +1,4 @@
-#include "ModelLoader.h"
+#include "mesh/ModelLoader.h"
 
 #include <assimp/cimport.h>
 #include <assimp/postprocess.h>
@@ -21,7 +21,7 @@ struct AssimpSceneDeleter {
 
 } // namespace
 
-ModelMesh ModelLoader::loadFirstMesh(const std::filesystem::path& scenePath) {
+MeshData ModelLoader::loadFirstMesh(const std::filesystem::path& scenePath) {
     const std::unique_ptr<const aiScene, AssimpSceneDeleter> scene(
         aiImportFile(
             scenePath.string().c_str(),
@@ -38,7 +38,7 @@ ModelMesh ModelLoader::loadFirstMesh(const std::filesystem::path& scenePath) {
         throw std::runtime_error("Model scene does not contain vertex normals: " + scenePath.string());
     }
 
-    ModelMesh data;
+    MeshData data;
     data.positions.resize(static_cast<size_t>(mesh->mNumVertices) * 3u);
     data.normals.resize(static_cast<size_t>(mesh->mNumVertices) * 3u);
     data.texcoords.resize(static_cast<size_t>(mesh->mNumVertices) * 2u);

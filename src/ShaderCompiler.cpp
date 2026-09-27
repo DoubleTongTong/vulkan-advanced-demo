@@ -212,6 +212,8 @@ ShaderReflection ShaderCompiler::reflect(const std::vector<uint8_t>& spirv) {
             } else {
                 return {.message = "SPIR-V reflection found an unsupported sampled image dimension."};
             }
+        } else if (binding->descriptor_type == SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER) {
+            type = ShaderDescriptorType::StorageBuffer;
         } else {
             return {.message = "SPIR-V reflection found an unsupported descriptor type."};
         }

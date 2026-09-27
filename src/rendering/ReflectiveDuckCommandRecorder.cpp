@@ -2,7 +2,7 @@
 
 #include "CubeMapProcessor.h"
 #include "ImageProcessor.h"
-#include "ModelLoader.h"
+#include "mesh/ModelLoader.h"
 #include "VulkanContext.h"
 #include "VulkanProfiler.h"
 #include "VulkanShaderModule.h"
@@ -74,7 +74,7 @@ ReflectiveDuckCommandRecorder::ReflectiveDuckCommandRecorder(
       sceneData_(loadSceneData(scenePath)),
       texture_(context, ImageProcessor().loadRgba8(texturePath), "Reflective duck base color texture"),
       environment_(context, loadEnvironment(environmentPath), "Piazza Bologni environment cube"),
-      bindlessDescriptors_(
+      textureDescriptors_(
           context,
           {
               .shaders = {
@@ -115,10 +115,10 @@ ReflectiveDuckCommandRecorder::ReflectiveDuckCommandRecorder(
         throw std::runtime_error("Swapchain images do not support color attachment usage.");
     }
 
-    bindlessDescriptors_.fillSamplers(SamplersResource, texture_.sampler());
-    bindlessDescriptors_.writeSampler(SamplersResource, 1, environment_.sampler());
-    bindlessDescriptors_.writeTexture2D(Textures2DResource, 0, texture_);
-    bindlessDescriptors_.writeTextureCube(CubeTexturesResource, 0, environment_);
+    textureDescriptors_.fillSamplers(SamplersResource, texture_.sampler());
+    textureDescriptors_.writeSampler(SamplersResource, 1, environment_.sampler());
+    textureDescriptors_.writeTexture2D(Textures2DResource, 0, texture_);
+    textureDescriptors_.writeTextureCube(CubeTexturesResource, 0, environment_);
     createDepthAttachment();
     createPipelines(vertexShader, fragmentShader, skyVertexShader, skyFragmentShader);
 }
@@ -131,7 +131,7 @@ ReflectiveDuckCommandRecorder::~ReflectiveDuckCommandRecorder() {
 
 ReflectiveDuckCommandRecorder::SceneData ReflectiveDuckCommandRecorder::loadSceneData(
     const std::filesystem::path& scenePath) {
-    const ModelMesh mesh = ModelLoader::loadFirstMesh(scenePath);
+    const MeshData mesh = ModelLoader::loadFirstMesh(scenePath);
     const size_t vertexCount = mesh.positions.size() / 3u;
     if (vertexCount != mesh.normals.size() / 3u || vertexCount != mesh.texcoords.size() / 2u) {
         throw std::runtime_error("Model vertex attributes do not match: " + scenePath.string());
@@ -229,7 +229,7 @@ void ReflectiveDuckCommandRecorder::createPipelines(
             .cullMode = VK_CULL_MODE_BACK_BIT,
             .depthTestEnabled = true,
             .depthWriteEnabled = true,
-            .descriptorSetLayouts = {bindlessDescriptors_.layout()},
+            .descriptorSetLayouts = {textureDescriptors_.layout()},
             .debugName = "Reflective duck pipeline",
         });
 
@@ -241,7 +241,7 @@ void ReflectiveDuckCommandRecorder::createPipelines(
             .fragmentShader = &skyFragmentShader,
             .colorFormat = swapchain_.imageFormat(),
             .depthFormat = DepthFormat,
-            .descriptorSetLayouts = {bindlessDescriptors_.layout()},
+            .descriptorSetLayouts = {textureDescriptors_.layout()},
             .debugName = "Cube map sky pipeline",
         });
 }
@@ -332,7 +332,7 @@ void ReflectiveDuckCommandRecorder::record(const RenderFrameContext& frame) {
         .cameraPosition = glm::vec4(cameraPosition, 0.0f),
     };
     skyPipeline_->bind(commandBuffer);
-    bindlessDescriptors_.bind(commandBuffer, skyPipeline_->layout());
+    textureDescriptors_.bind(commandBuffer, skyPipeline_->layout());
     vkCmdPushConstants(
         commandBuffer, skyPipeline_->layout(), VK_SHADER_STAGE_FRAGMENT_BIT,
         0, sizeof(SkyPushConstants), &skyPushConstants);
@@ -343,7 +343,7 @@ void ReflectiveDuckCommandRecorder::record(const RenderFrameContext& frame) {
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, vertexOffsets);
     vkCmdBindIndexBuffer(commandBuffer, indexBuffer_.handle(), 0, VK_INDEX_TYPE_UINT32);
     duckPipeline_->bind(commandBuffer);
-    bindlessDescriptors_.bind(commandBuffer, duckPipeline_->layout());
+    textureDescriptors_.bind(commandBuffer, duckPipeline_->layout());
 
     struct PushConstants {
         glm::mat4 mvp;

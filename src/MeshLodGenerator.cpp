@@ -15,7 +15,7 @@ struct Vertex {
     float uv[2] = {};
 };
 
-std::vector<Vertex> makeVertices(const ModelMesh& mesh) {
+std::vector<Vertex> makeVertices(const MeshData& mesh) {
     const size_t vertexCount = mesh.positions.size() / 3u;
     if (vertexCount == 0 || mesh.positions.size() != vertexCount * 3u ||
         mesh.normals.size() != vertexCount * 3u ||
@@ -32,8 +32,8 @@ std::vector<Vertex> makeVertices(const ModelMesh& mesh) {
     return vertices;
 }
 
-ModelMesh makeModelMesh(const std::vector<Vertex>& vertices, const ModelMesh& source) {
-    ModelMesh result;
+MeshData makeMeshData(const std::vector<Vertex>& vertices, const MeshData& source) {
+    MeshData result;
     result.positions.resize(vertices.size() * 3u);
     result.normals.resize(vertices.size() * 3u);
     result.texcoords.resize(vertices.size() * 2u);
@@ -47,7 +47,7 @@ ModelMesh makeModelMesh(const std::vector<Vertex>& vertices, const ModelMesh& so
     return result;
 }
 
-void validateIndices(const ModelMesh& mesh) {
+void validateIndices(const MeshData& mesh) {
     if (mesh.indices.empty() || mesh.indices.size() % 3u != 0u) {
         throw std::invalid_argument("Model mesh indices must describe non-empty triangles.");
     }
@@ -63,7 +63,7 @@ void validateIndices(const ModelMesh& mesh) {
 } // namespace
 
 MeshLodSet MeshLodGenerator::generate(
-    const ModelMesh& source,
+    const MeshData& source,
     std::span<const float> simplificationRatios) {
     validateIndices(source);
     const std::vector<Vertex> inputVertices = makeVertices(source);
@@ -94,7 +94,7 @@ MeshLodSet MeshLodGenerator::generate(
     optimizedVertices.resize(fetchedVertexCount);
 
     MeshLodSet result;
-    result.mesh = makeModelMesh(optimizedVertices, source);
+    result.mesh = makeMeshData(optimizedVertices, source);
     result.levels.push_back({.triangleRatio = 1.0f, .indices = optimizedIndices});
 
     for (const float ratio : simplificationRatios) {

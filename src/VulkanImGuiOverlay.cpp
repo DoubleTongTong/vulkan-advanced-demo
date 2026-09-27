@@ -1,7 +1,7 @@
 #include "VulkanImGuiOverlay.h"
 
 #include "Image.h"
-#include "VulkanBindlessDescriptorSet.h"
+#include "rendering/descriptors/textures/TextureDescriptorSet.h"
 #include "VulkanContext.h"
 #include "VulkanProfiler.h"
 #include "VulkanRenderPipeline.h"
@@ -122,9 +122,9 @@ void VulkanImGuiOverlay::createPipeline() {
     const std::filesystem::path shaderDir = APP_IMGUI_SHADER_DIR;
     const VulkanShaderModule vertex = VulkanShaderModule::fromFile(context_, shaderDir / "main.vert");
     const VulkanShaderModule fragment = VulkanShaderModule::fromFile(context_, shaderDir / "main.frag");
-    descriptors_ = std::make_unique<VulkanBindlessDescriptorSet>(
+    descriptors_ = std::make_unique<TextureDescriptorSet>(
         context_,
-        BindlessDescriptorSetDesc{
+        TextureDescriptorSetDesc{
             .shaders = {&vertex, &fragment},
             .runtimeArrays = {{TexturesResource, MaxTextures}},
             .debugName = "ImGui textures",

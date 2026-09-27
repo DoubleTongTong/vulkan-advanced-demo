@@ -1,5 +1,6 @@
 #include "rendering/RubberDuckCommandRecorder.h"
 
+#include "mesh/ModelLoader.h"
 #include "VulkanShaderModule.h"
 #include "VulkanSwapchain.h"
 #include "VulkanContext.h"

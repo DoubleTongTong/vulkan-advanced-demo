@@ -293,12 +293,13 @@ add_executable(vulkan_advanced_demo
     src/SceneCamera.cpp
     src/main.cpp
     src/GlfwWindow.cpp
-    src/ModelLoader.cpp
+    src/mesh/ModelLoader.cpp
     src/rendering/canvas/LineCanvas3D.cpp
     src/rendering/ReflectiveDuckCommandRecorder.cpp
     src/rendering/RubberDuckCommandRecorder.cpp
     src/rendering/TexturedDuckCommandRecorder.cpp
     src/rendering/TriangleCommandRecorder.cpp
+    src/rendering/VertexPullingDuckCommandRecorder.cpp
     src/ui/FpsPanel.cpp
     src/ui/FrameGraphPanel.cpp
     src/ui/canvas/LineCanvas2D.cpp
@@ -306,7 +307,7 @@ add_executable(vulkan_advanced_demo
     src/ui/ImGuiDemoPanel.cpp
     src/ui/TextureViewerPanel.cpp
     src/VmaImplementation.cpp
-    src/VulkanBindlessDescriptorSet.cpp
+    src/rendering/descriptors/textures/TextureDescriptorSet.cpp
     src/VulkanBuffer.cpp
     src/VulkanContext.cpp
     src/VulkanDebugMessenger.cpp
@@ -321,12 +322,15 @@ add_executable(vulkan_advanced_demo
     src/VulkanTexture2D.cpp
     src/VulkanTextureCube.cpp
     src/VulkanUtils.cpp
+    src/rendering/descriptors/vertex_pulling/VertexPullingDescriptorSet.cpp
+    src/rendering/mesh/vertex_pulling/VertexPullingMesh.cpp
 )
 
 target_compile_definitions(vulkan_advanced_demo
     PRIVATE
         APP_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/reflective_duck"
         APP_RUBBER_DUCK_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/rubber_duck"
+        APP_VERTEX_PULLING_DUCK_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/vertex_pulling_duck"
         APP_SKY_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/cube_sky"
         APP_LINE_CANVAS_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/canvas/line_3d"
         RUBBER_DUCK_SCENE="${RUBBER_DUCK_SCENE}"
