@@ -1,7 +1,7 @@
 #pragma once
 
-#include "rendering/descriptors/textures/TextureDescriptorSet.h"
 #include "VulkanBuffer.h"
+#include "VulkanDescriptorSet.h"
 #include "VulkanRenderPipeline.h"
 #include "VulkanTexture2D.h"
 #include "VulkanTextureCube.h"
@@ -68,7 +68,7 @@ private:
     SceneData sceneData_;
     VulkanTexture2D texture_;
     VulkanTextureCube environment_;
-    TextureDescriptorSet textureDescriptors_;
+    VulkanDescriptorSet textureDescriptors_;
     VulkanBuffer vertexBuffer_;
     VulkanBuffer indexBuffer_;
     std::unique_ptr<VulkanRenderPipeline> duckPipeline_;

@@ -10,7 +10,7 @@
 #include "VulkanSwapchain.h"
 #include "VulkanUtils.h"
 #include "rendering/IRenderCommandRecorder.h"
-#include "rendering/VertexPullingDuckCommandRecorder.h"
+#include "rendering/InstancedCubesCommandRecorder.h"
 #include "ui/FrameGraphPanel.h"
 #include "ui/FpsPanel.h"
 
@@ -29,7 +29,7 @@ int main() {
         // 先完成 Vulkan 最基础的上下文创建：instance、surface、device 和 graphics queue。
         VulkanContext vulkan(window.handle());
 
-        const std::filesystem::path shaderDir = APP_VERTEX_PULLING_DUCK_SHADER_DIR;
+        const std::filesystem::path shaderDir = APP_INSTANCED_CUBES_SHADER_DIR;
         const VulkanShaderModule vertexShader =
             VulkanShaderModule::fromFile(vulkan, shaderDir / "main.vert");
         const VulkanShaderModule fragmentShader =
@@ -47,15 +47,24 @@ int main() {
         // ImmediateCommands 只负责命令缓冲的申请、提交和回收，不关心里面录制什么。
         VulkanImmediateCommands commands(vulkan, "Main immediate commands");
         // 相机是场景基础能力，而非某个鸭子示例的构造参数。
-        SceneCamera sceneCamera(window.handle());
-        VertexPullingDuckCommandRecorder vertexPullingDuckRecorder(
-            vulkan,
-            swapchain,
-            vertexShader,
-            fragmentShader,
-            RUBBER_DUCK_SCENE,
-            RUBBER_DUCK_TEXTURE);
-        IRenderCommandRecorder& renderCommandRecorder = vertexPullingDuckRecorder;
+        // 相机直接位于立方体群内部。近处立方体会因透视显得很大，
+        // 远处仍然保持密集，这正是“穿行在百万立方体中”的视觉效果。
+        SceneCamera sceneCamera(
+            window.handle(),
+            FirstPersonCamera::Settings{
+                .position = {0.0f, 0.0f, 0.0f},
+                .target = {0.0f, 0.0f, -1.0f},
+                .maxSpeed = 80.0f,
+                .fastMultiplier = 5.0f,
+            },
+            SceneCamera::Lens{
+                .verticalFieldOfViewDegrees = 60.0f,
+                .nearPlane = 0.1f,
+                .farPlane = 2500.0f,
+            });
+        InstancedCubesCommandRecorder instancedCubesRecorder(
+            vulkan, swapchain, vertexShader, fragmentShader);
+        IRenderCommandRecorder& renderCommandRecorder = instancedCubesRecorder;
         FrameTimer frameTimer;
         VulkanImGuiOverlay imgui(vulkan, swapchain, window.handle());
         imgui.addPanel(std::make_unique<FpsPanel>(frameTimer));

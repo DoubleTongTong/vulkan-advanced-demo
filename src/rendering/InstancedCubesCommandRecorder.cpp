@@ -1,73 +1,114 @@
-#include "rendering/VertexPullingDuckCommandRecorder.h"
+#include "rendering/InstancedCubesCommandRecorder.h"
 
-#include "ImageProcessor.h"
-#include "mesh/ModelLoader.h"
+#include "Image.h"
 #include "VulkanContext.h"
 #include "VulkanProfiler.h"
 #include "VulkanShaderModule.h"
 #include "VulkanSwapchain.h"
 #include "VulkanUtils.h"
 
-#include <glm/ext/matrix_transform.hpp>
 #include <glm/mat4x4.hpp>
-#include <glm/vec3.hpp>
+#include <glm/vec4.hpp>
 #include <vk_mem_alloc.h>
 
-#include <chrono>
 #include <cstdint>
 #include <stdexcept>
 
 namespace {
 
 constexpr VkFormat DepthFormat = VK_FORMAT_D32_SFLOAT;
+constexpr uint32_t CubeCount = 1024 * 1024;
+constexpr uint32_t VertexCount = 36;
 constexpr uint32_t MaxBindlessTextures = 16;
 constexpr const char* SamplersResource = "kSamplers";
 constexpr const char* TexturesResource = "kTextures2D";
 
-glm::mat4 makeModelViewProjection(
-    const RenderView& view,
-    const VertexPullingMesh& mesh) {
-    using Clock = std::chrono::steady_clock;
-    static const Clock::time_point startTime = Clock::now();
+// 固定种子的 xorshift 足够生成演示数据，也让每次启动看到相同的场景。
+float random01(uint32_t& state) {
+    state ^= state << 13;
+    state ^= state >> 17;
+    state ^= state << 5;
+    return static_cast<float>(state) / static_cast<float>(UINT32_MAX);
+}
 
-    const float seconds = std::chrono::duration<float>(Clock::now() - startTime).count();
-    return view.viewProjection *
-           mesh.normalizedModelMatrix(glm::radians(35.0f) + seconds);
+std::vector<glm::vec4> makeInstances() {
+    std::vector<glm::vec4> instances(CubeCount);
+    uint32_t randomState = 0x12345678u;
+    for (glm::vec4& instance : instances) {
+        // xyz 是中心位置，w 是初始旋转角度；一个 vec4 恰好 16 字节。
+        instance = {
+            random01(randomState) * 1000.0f - 500.0f,
+            random01(randomState) * 1000.0f - 500.0f,
+            random01(randomState) * 1000.0f - 500.0f,
+            random01(randomState) * 6.2831853f,
+        };
+    }
+    return instances;
+}
+
+VulkanBuffer makeInstanceBuffer(const VulkanContext& context) {
+    // 数据会在 VulkanBuffer 构造期间立即上传，返回后即可释放这份 CPU 数组。
+    const std::vector<glm::vec4> instances = makeInstances();
+    return VulkanBuffer(
+        context,
+        {
+            .usage = BufferUsage_Storage,
+            .storage = BufferStorage::Device,
+            .size = sizeof(glm::vec4) * instances.size(),
+            .data = instances.data(),
+            .debugName = "Instanced cubes positions and angles",
+        });
+}
+
+RgbaImage makeXorTexture() {
+    constexpr uint32_t Size = 256;
+    RgbaImage image{.width = Size, .height = Size};
+    image.pixels.resize(Size * Size * 4);
+    for (uint32_t y = 0; y < Size; ++y) {
+        for (uint32_t x = 0; x < Size; ++x) {
+            const uint8_t value = static_cast<uint8_t>(x ^ y);
+            const size_t offset = (y * Size + x) * 4;
+            image.pixels[offset + 0] = value;
+            image.pixels[offset + 1] = value;
+            image.pixels[offset + 2] = value;
+            image.pixels[offset + 3] = 255;
+        }
+    }
+    return image;
 }
 
 } // namespace
 
-VertexPullingDuckCommandRecorder::VertexPullingDuckCommandRecorder(
+InstancedCubesCommandRecorder::InstancedCubesCommandRecorder(
     const VulkanContext& context,
     const VulkanSwapchain& swapchain,
     const VulkanShaderModule& vertexShader,
-    const VulkanShaderModule& fragmentShader,
-    const std::filesystem::path& scenePath,
-    const std::filesystem::path& texturePath)
+    const VulkanShaderModule& fragmentShader)
     : context_(context),
       swapchain_(swapchain),
-      texture_(context, ImageProcessor().loadRgba8(texturePath), "Vertex pulling duck base color texture"),
-      mesh_(context, ModelLoader::loadFirstMesh(scenePath)),
-      vertexDescriptors_(
+      texture_(context, makeXorTexture(), "Instanced cubes XOR texture"),
+      instanceBuffer_(makeInstanceBuffer(context)),
+      instanceDescriptors_(
           context,
           {
               .shaders = {&vertexShader},
               .set = 1,
-              .debugName = "Vertex pulling mesh descriptors",
+              .debugName = "Instanced cubes instance descriptors",
           }),
       textureDescriptors_(
           context,
           {
               .shaders = {&fragmentShader},
               .runtimeArrays = {{TexturesResource, MaxBindlessTextures}},
-              .debugName = "Vertex pulling duck texture descriptors",
+              .debugName = "Instanced cubes texture descriptors",
           }),
+      startTime_(std::chrono::steady_clock::now()),
       imageLayouts_(swapchain.images().size(), VK_IMAGE_LAYOUT_UNDEFINED) {
     if ((swapchain.imageUsage() & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) == 0) {
         throw std::runtime_error("Swapchain images do not support color attachment usage.");
     }
 
-    vertexDescriptors_.writeStorageBuffer("kVertices", mesh_.vertexStorageBuffer());
+    instanceDescriptors_.writeStorageBuffer("kInstances", instanceBuffer_);
     textureDescriptors_.fillSamplers(SamplersResource, texture_.sampler());
     textureDescriptors_.writeTexture2D(TexturesResource, 0, texture_);
     createDepthAttachment();
@@ -76,7 +117,7 @@ VertexPullingDuckCommandRecorder::VertexPullingDuckCommandRecorder(
         RenderPipelineDesc{
             .vertexShader = &vertexShader,
             .fragmentShader = &fragmentShader,
-            // PVP 在 shader 内读取 storage buffer，不声明传统 vertex input。
+            // 不需要 vertex buffer：36 个顶点完全由 gl_VertexIndex 生成。
             .colorFormat = swapchain_.imageFormat(),
             .depthFormat = DepthFormat,
             .cullMode = VK_CULL_MODE_BACK_BIT,
@@ -84,22 +125,22 @@ VertexPullingDuckCommandRecorder::VertexPullingDuckCommandRecorder(
             .depthWriteEnabled = true,
             .descriptorSetLayouts = {
                 textureDescriptors_.layout(),
-                vertexDescriptors_.layout(),
+                instanceDescriptors_.layout(),
             },
-            .debugName = "Vertex pulling duck pipeline",
+            .debugName = "Instanced cubes pipeline",
         });
 }
 
-VertexPullingDuckCommandRecorder::~VertexPullingDuckCommandRecorder() {
+InstancedCubesCommandRecorder::~InstancedCubesCommandRecorder() {
     pipeline_.reset();
     destroyDepthAttachment();
 }
 
-void VertexPullingDuckCommandRecorder::record(const RenderFrameContext& frame) {
+void InstancedCubesCommandRecorder::record(const RenderFrameContext& frame) {
     const VkCommandBuffer commandBuffer = frame.commandBuffer;
     const uint32_t imageIndex = frame.imageIndex;
     APP_PROFILE_FUNCTION();
-    APP_PROFILE_GPU_ZONE(context_, commandBuffer, "Vertex pulling duck");
+    APP_PROFILE_GPU_ZONE(context_, commandBuffer, "One million instanced cubes");
 
     const VkImage image = swapchain_.images()[imageIndex];
     const VkExtent2D extent = swapchain_.extent();
@@ -114,7 +155,8 @@ void VertexPullingDuckCommandRecorder::record(const RenderFrameContext& frame) {
         0, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT);
 
-    const VkClearValue clearColor{.color = {{0.45f, 0.45f, 0.45f, 1.0f}}};
+    // 白色背景更容易看清近处立方体的轮廓。
+    const VkClearValue clearColor{.color = {{1.0f, 1.0f, 1.0f, 1.0f}}};
     const VkClearValue clearDepth{.depthStencil = {1.0f, 0}};
     const VkRenderingAttachmentInfo colorAttachment{
         .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
@@ -156,22 +198,24 @@ void VertexPullingDuckCommandRecorder::record(const RenderFrameContext& frame) {
 
     pipeline_->bind(commandBuffer);
     textureDescriptors_.bind(commandBuffer, pipeline_->layout());
-    vertexDescriptors_.bind(commandBuffer, pipeline_->layout());
+    instanceDescriptors_.bind(commandBuffer, pipeline_->layout());
 
     struct PushConstants {
-        glm::mat4 mvp;
-        uint32_t textureId = 0;
+        glm::mat4 viewProjection;
+        float time;
     };
+    const float seconds = std::chrono::duration<float>(
+        std::chrono::steady_clock::now() - startTime_).count();
     const PushConstants pushConstants{
-        .mvp = makeModelViewProjection(frame.view, mesh_),
-        .textureId = 0,
+        .viewProjection = frame.view.viewProjection,
+        .time = seconds,
     };
     vkCmdPushConstants(
-        commandBuffer, pipeline_->layout(),
-        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+        commandBuffer, pipeline_->layout(), VK_SHADER_STAGE_VERTEX_BIT,
         0, sizeof(PushConstants), &pushConstants);
-    mesh_.bindIndexBuffer(commandBuffer);
-    vkCmdDrawIndexed(commandBuffer, mesh_.indexCount(), 1, 0, 0, 0);
+
+    // 这是整个示例的重点：一个 API 调用提交一百万个实例。
+    vkCmdDraw(commandBuffer, VertexCount, CubeCount, 0, 0);
     vkCmdEndRendering(commandBuffer);
 
     vulkan_utils::transitionImage(
@@ -183,7 +227,7 @@ void VertexPullingDuckCommandRecorder::record(const RenderFrameContext& frame) {
     depthLayout_ = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
 }
 
-void VertexPullingDuckCommandRecorder::createDepthAttachment() {
+void InstancedCubesCommandRecorder::createDepthAttachment() {
     const VkExtent2D extent = swapchain_.extent();
     const VkImageCreateInfo imageInfo{
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
@@ -209,7 +253,7 @@ void VertexPullingDuckCommandRecorder::createDepthAttachment() {
         "vmaCreateImage");
     context_.setDebugObjectName(
         VK_OBJECT_TYPE_IMAGE, reinterpret_cast<uint64_t>(depthImage_),
-        "Vertex pulling duck depth image");
+        "Instanced cubes depth image");
 
     const VkImageViewCreateInfo viewInfo{
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -229,10 +273,10 @@ void VertexPullingDuckCommandRecorder::createDepthAttachment() {
         "vkCreateImageView");
     context_.setDebugObjectName(
         VK_OBJECT_TYPE_IMAGE_VIEW, reinterpret_cast<uint64_t>(depthImageView_),
-        "Vertex pulling duck depth image view");
+        "Instanced cubes depth image view");
 }
 
-void VertexPullingDuckCommandRecorder::destroyDepthAttachment() {
+void InstancedCubesCommandRecorder::destroyDepthAttachment() {
     if (depthImageView_) {
         vkDestroyImageView(context_.device(), depthImageView_, nullptr);
         depthImageView_ = VK_NULL_HANDLE;

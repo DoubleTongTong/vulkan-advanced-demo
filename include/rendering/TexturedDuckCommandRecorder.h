@@ -1,7 +1,7 @@
 #pragma once
 
-#include "rendering/descriptors/textures/TextureDescriptorSet.h"
 #include "VulkanBuffer.h"
+#include "VulkanDescriptorSet.h"
 #include "VulkanRenderPipeline.h"
 #include "VulkanTexture2D.h"
 #include "rendering/IRenderCommandRecorder.h"
@@ -55,7 +55,7 @@ private:
     const VulkanSwapchain& swapchain_;
     SceneData sceneData_;
     VulkanTexture2D texture_;
-    TextureDescriptorSet textureDescriptors_;
+    VulkanDescriptorSet textureDescriptors_;
     VulkanBuffer vertexBuffer_;
     VulkanBuffer indexBuffer_;
     std::unique_ptr<VulkanRenderPipeline> pipeline_;

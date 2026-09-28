@@ -1,14 +1,14 @@
 #pragma once
 
+#include "VulkanBuffer.h"
 #include "VulkanDescriptorSet.h"
-#include "rendering/mesh/vertex_pulling/VertexPullingMesh.h"
 #include "VulkanRenderPipeline.h"
 #include "VulkanTexture2D.h"
 #include "rendering/IRenderCommandRecorder.h"
 
 #include <vulkan/vulkan.h>
 
-#include <filesystem>
+#include <chrono>
 #include <memory>
 #include <vector>
 
@@ -18,17 +18,16 @@ class VulkanSwapchain;
 struct VmaAllocation_T;
 using VmaAllocation = VmaAllocation_T*;
 
-// 使用 gl_VertexIndex 从 storage buffer 拉取顶点属性的纹理化鸭子示例。
-class VertexPullingDuckCommandRecorder final : public IRenderCommandRecorder {
+// 一次 draw call 绘制 1024 * 1024 个立方体。
+// 顶点和 UV 在 shader 中生成，CPU 侧只保存每个实例的中心与初始角度。
+class InstancedCubesCommandRecorder final : public IRenderCommandRecorder {
 public:
-    VertexPullingDuckCommandRecorder(
+    InstancedCubesCommandRecorder(
         const VulkanContext& context,
         const VulkanSwapchain& swapchain,
         const VulkanShaderModule& vertexShader,
-        const VulkanShaderModule& fragmentShader,
-        const std::filesystem::path& scenePath,
-        const std::filesystem::path& texturePath);
-    ~VertexPullingDuckCommandRecorder();
+        const VulkanShaderModule& fragmentShader);
+    ~InstancedCubesCommandRecorder();
 
     void record(const RenderFrameContext& frame) override;
 
@@ -39,10 +38,11 @@ private:
     const VulkanContext& context_;
     const VulkanSwapchain& swapchain_;
     VulkanTexture2D texture_;
-    VertexPullingMesh mesh_;
-    VulkanDescriptorSet vertexDescriptors_;
+    VulkanBuffer instanceBuffer_;
+    VulkanDescriptorSet instanceDescriptors_;
     VulkanDescriptorSet textureDescriptors_;
     std::unique_ptr<VulkanRenderPipeline> pipeline_;
+    std::chrono::steady_clock::time_point startTime_;
     VkImage depthImage_ = VK_NULL_HANDLE;
     VkImageView depthImageView_ = VK_NULL_HANDLE;
     VmaAllocation depthAllocation_ = nullptr;
