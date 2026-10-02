@@ -18,6 +18,8 @@ glslang_stage_t toGlslangStage(ShaderStage stage) {
         return GLSLANG_STAGE_VERTEX;
     case ShaderStage::Fragment:
         return GLSLANG_STAGE_FRAGMENT;
+    case ShaderStage::Compute:
+        return GLSLANG_STAGE_COMPUTE;
     }
 
     throw std::runtime_error("Unsupported shader stage.");
@@ -149,6 +151,10 @@ ShaderStage ShaderCompiler::stageFromFileName(const std::string& fileName) {
 
     if (extension == ".frag") {
         return ShaderStage::Fragment;
+    }
+
+    if (extension == ".comp") {
+        return ShaderStage::Compute;
     }
 
     throw std::runtime_error("Unsupported shader file extension: " + extension);

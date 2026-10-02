@@ -186,9 +186,22 @@ void VulkanDescriptorSet::writeTextureCube(
 void VulkanDescriptorSet::bind(
     VkCommandBuffer commandBuffer,
     VkPipelineLayout pipelineLayout) const {
+    bind(commandBuffer, pipelineLayout, VK_PIPELINE_BIND_POINT_GRAPHICS);
+}
+
+void VulkanDescriptorSet::bindCompute(
+    VkCommandBuffer commandBuffer,
+    VkPipelineLayout pipelineLayout) const {
+    bind(commandBuffer, pipelineLayout, VK_PIPELINE_BIND_POINT_COMPUTE);
+}
+
+void VulkanDescriptorSet::bind(
+    VkCommandBuffer commandBuffer,
+    VkPipelineLayout pipelineLayout,
+    VkPipelineBindPoint bindPoint) const {
     vkCmdBindDescriptorSets(
         commandBuffer,
-        VK_PIPELINE_BIND_POINT_GRAPHICS,
+        bindPoint,
         pipelineLayout,
         setIndex_,
         1,

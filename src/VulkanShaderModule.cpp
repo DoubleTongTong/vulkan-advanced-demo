@@ -136,6 +136,8 @@ VkShaderStageFlagBits VulkanShaderModule::toVkStage(ShaderStage stage) {
         return VK_SHADER_STAGE_VERTEX_BIT;
     case ShaderStage::Fragment:
         return VK_SHADER_STAGE_FRAGMENT_BIT;
+    case ShaderStage::Compute:
+        return VK_SHADER_STAGE_COMPUTE_BIT;
     }
 
     throw std::runtime_error("Unsupported shader stage.");

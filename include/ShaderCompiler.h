@@ -7,6 +7,7 @@
 enum class ShaderStage {
     Vertex,
     Fragment,
+    Compute,
 };
 
 enum class ShaderDescriptorType {

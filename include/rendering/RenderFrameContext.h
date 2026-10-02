@@ -20,5 +20,6 @@ struct RenderView {
 struct RenderFrameContext {
     VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
     uint32_t imageIndex = 0;
+    uint32_t frameIndex = 0;
     const RenderView& view;
 };

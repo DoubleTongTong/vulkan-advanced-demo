@@ -55,6 +55,7 @@ public:
     void writeTextureCube(std::string_view name, uint32_t index, const VulkanTextureCube& texture);
 
     void bind(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout) const;
+    void bindCompute(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout) const;
 
 private:
     struct Binding {
@@ -82,6 +83,10 @@ private:
     void validateLimits() const;
     void createLayout(const char* debugName);
     void createPoolAndSet(const char* debugName);
+    void bind(
+        VkCommandBuffer commandBuffer,
+        VkPipelineLayout pipelineLayout,
+        VkPipelineBindPoint bindPoint) const;
     void destroy();
 
     const VulkanContext* context_ = nullptr;

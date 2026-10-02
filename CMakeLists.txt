@@ -296,6 +296,7 @@ add_executable(vulkan_advanced_demo
     src/mesh/ModelLoader.cpp
     src/rendering/canvas/LineCanvas3D.cpp
     src/rendering/InstancedCubesCommandRecorder.cpp
+    src/rendering/InstancedMeshesCommandRecorder.cpp
     src/rendering/ReflectiveDuckCommandRecorder.cpp
     src/rendering/RubberDuckCommandRecorder.cpp
     src/rendering/TexturedDuckCommandRecorder.cpp
@@ -310,6 +311,7 @@ add_executable(vulkan_advanced_demo
     src/VmaImplementation.cpp
     src/VulkanBuffer.cpp
     src/VulkanContext.cpp
+    src/VulkanComputePipeline.cpp
     src/VulkanDebugMessenger.cpp
     src/VulkanDescriptorSet.cpp
     src/VulkanFrameSync.cpp
@@ -324,6 +326,7 @@ add_executable(vulkan_advanced_demo
     src/VulkanTextureCube.cpp
     src/VulkanUtils.cpp
     src/rendering/mesh/vertex_pulling/VertexPullingMesh.cpp
+    src/rendering/mesh/instanced/InstancedMesh.cpp
 )
 
 target_compile_definitions(vulkan_advanced_demo
@@ -332,6 +335,7 @@ target_compile_definitions(vulkan_advanced_demo
         APP_RUBBER_DUCK_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/rubber_duck"
         APP_VERTEX_PULLING_DUCK_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/vertex_pulling_duck"
         APP_INSTANCED_CUBES_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/instanced_cubes"
+        APP_INSTANCED_MESHES_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/instanced_meshes"
         APP_SKY_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/cube_sky"
         APP_LINE_CANVAS_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/canvas/line_3d"
         RUBBER_DUCK_SCENE="${RUBBER_DUCK_SCENE}"

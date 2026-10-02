@@ -1,0 +1,49 @@
+#version 450
+
+// 一个 workgroup 处理 32 个实例；这是大多数设备都能高效执行的保守尺寸。
+layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+
+layout(push_constant) uniform PushConstants {
+    uint instanceCount;
+    float time;
+} pc;
+
+layout(std430, set = 1, binding = 0) readonly buffer InstanceBuffer {
+    // xyz：世界空间中心；w：初始旋转角度。
+    vec4 centers[];
+} kInstances;
+
+layout(std430, set = 1, binding = 1) writeonly buffer MatrixBuffer {
+    mat4 models[];
+} kMatrices;
+
+mat4 rotateAroundDiagonal(float angle) {
+    const vec3 axis = normalize(vec3(1.0));
+    const float c = cos(angle);
+    const float s = sin(angle);
+    const vec3 t = (1.0 - c) * axis;
+
+    mat4 result = mat4(1.0);
+    result[0].xyz = vec3(c + t.x * axis.x,
+                         t.x * axis.y + s * axis.z,
+                         t.x * axis.z - s * axis.y);
+    result[1].xyz = vec3(t.y * axis.x - s * axis.z,
+                         c + t.y * axis.y,
+                         t.y * axis.z + s * axis.x);
+    result[2].xyz = vec3(t.z * axis.x + s * axis.y,
+                         t.z * axis.y - s * axis.x,
+                         c + t.z * axis.z);
+    return result;
+}
+
+void main() {
+    const uint instanceIndex = gl_GlobalInvocationID.x;
+    if (instanceIndex >= pc.instanceCount) {
+        return;
+    }
+
+    const vec4 center = kInstances.centers[instanceIndex];
+    mat4 model = rotateAroundDiagonal(pc.time + center.w);
+    model[3] = vec4(center.xyz, 1.0);
+    kMatrices.models[instanceIndex] = model;
+}
