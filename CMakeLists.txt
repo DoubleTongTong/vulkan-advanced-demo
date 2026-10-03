@@ -295,6 +295,7 @@ add_executable(vulkan_advanced_demo
     src/GlfwWindow.cpp
     src/mesh/ModelLoader.cpp
     src/rendering/canvas/LineCanvas3D.cpp
+    src/rendering/InfiniteGridCommandRecorder.cpp
     src/rendering/InstancedCubesCommandRecorder.cpp
     src/rendering/InstancedMeshesCommandRecorder.cpp
     src/rendering/ReflectiveDuckCommandRecorder.cpp
@@ -336,6 +337,7 @@ target_compile_definitions(vulkan_advanced_demo
         APP_VERTEX_PULLING_DUCK_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/vertex_pulling_duck"
         APP_INSTANCED_CUBES_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/instanced_cubes"
         APP_INSTANCED_MESHES_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/instanced_meshes"
+        APP_INFINITE_GRID_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/infinite_grid"
         APP_SKY_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/cube_sky"
         APP_LINE_CANVAS_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/canvas/line_3d"
         RUBBER_DUCK_SCENE="${RUBBER_DUCK_SCENE}"
