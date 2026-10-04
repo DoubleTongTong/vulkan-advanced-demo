@@ -6,6 +6,9 @@
 
 enum class ShaderStage {
     Vertex,
+    TessellationControl,
+    TessellationEvaluation,
+    Geometry,
     Fragment,
     Compute,
 };

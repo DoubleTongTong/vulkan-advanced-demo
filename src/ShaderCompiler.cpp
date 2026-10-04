@@ -16,6 +16,12 @@ glslang_stage_t toGlslangStage(ShaderStage stage) {
     switch (stage) {
     case ShaderStage::Vertex:
         return GLSLANG_STAGE_VERTEX;
+    case ShaderStage::TessellationControl:
+        return GLSLANG_STAGE_TESSCONTROL;
+    case ShaderStage::TessellationEvaluation:
+        return GLSLANG_STAGE_TESSEVALUATION;
+    case ShaderStage::Geometry:
+        return GLSLANG_STAGE_GEOMETRY;
     case ShaderStage::Fragment:
         return GLSLANG_STAGE_FRAGMENT;
     case ShaderStage::Compute:
@@ -147,6 +153,18 @@ ShaderStage ShaderCompiler::stageFromFileName(const std::string& fileName) {
 
     if (extension == ".vert") {
         return ShaderStage::Vertex;
+    }
+
+    if (extension == ".tesc") {
+        return ShaderStage::TessellationControl;
+    }
+
+    if (extension == ".tese") {
+        return ShaderStage::TessellationEvaluation;
+    }
+
+    if (extension == ".geom") {
+        return ShaderStage::Geometry;
     }
 
     if (extension == ".frag") {

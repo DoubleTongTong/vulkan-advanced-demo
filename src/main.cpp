@@ -9,10 +9,11 @@
 #include "VulkanShaderModule.h"
 #include "VulkanSwapchain.h"
 #include "VulkanUtils.h"
-#include "rendering/InfiniteGridCommandRecorder.h"
 #include "rendering/IRenderCommandRecorder.h"
+#include "rendering/TessellatedDuckCommandRecorder.h"
 #include "ui/FrameGraphPanel.h"
 #include "ui/FpsPanel.h"
+#include "ui/TessellationPanel.h"
 
 #include <cstdint>
 #include <exception>
@@ -29,42 +30,53 @@ int main() {
         // 先完成 Vulkan 最基础的上下文创建：instance、surface、device 和 graphics queue。
         VulkanContext vulkan(window.handle());
 
-        const std::filesystem::path shaderDir = APP_INFINITE_GRID_SHADER_DIR;
+        const std::filesystem::path shaderDir = APP_TESSELLATED_DUCK_SHADER_DIR;
         const VulkanShaderModule vertexShader =
             VulkanShaderModule::fromFile(vulkan, shaderDir / "main.vert");
+        const VulkanShaderModule tessellationControlShader =
+            VulkanShaderModule::fromFile(vulkan, shaderDir / "main.tesc");
+        const VulkanShaderModule tessellationEvaluationShader =
+            VulkanShaderModule::fromFile(vulkan, shaderDir / "main.tese");
+        const VulkanShaderModule geometryShader =
+            VulkanShaderModule::fromFile(vulkan, shaderDir / "main.geom");
         const VulkanShaderModule fragmentShader =
             VulkanShaderModule::fromFile(vulkan, shaderDir / "main.frag");
 
-        std::cout << "Created infinite grid shaders. Vertex push constants: "
-                  << vertexShader.pushConstantSize()
-                  << " bytes, fragment push constants: "
-                  << fragmentShader.pushConstantSize()
-                  << " bytes.\n";
+        std::cout << "Created tessellation shader pipeline modules.\n";
 
         // Swapchain 管理一组可以呈现到窗口上的图像，后续渲染会围绕它展开。
         VulkanSwapchain swapchain(vulkan, window.width(), window.height());
 
         // ImmediateCommands 只负责命令缓冲的申请、提交和回收，不关心里面录制什么。
         VulkanImmediateCommands commands(vulkan, "Main immediate commands");
-        // 从斜上方观察 XZ 网格；Home 可以随时恢复这个视角。
+        // 从斜前方观察归一化后的鸭子；Home 可以随时恢复这个视角。
         SceneCamera sceneCamera(
             window.handle(),
             FirstPersonCamera::Settings{
-                .position = {3.0f, 2.5f, 3.0f},
+                .position = {2.5f, 1.5f, 2.5f},
                 .target = {0.0f, 0.0f, 0.0f},
-                .maxSpeed = 10.0f,
+                .maxSpeed = 4.0f,
             },
             SceneCamera::Lens{
                 .verticalFieldOfViewDegrees = 45.0f,
                 .nearPlane = 0.1f,
-                .farPlane = 500.0f,
+                .farPlane = 100.0f,
             });
-        InfiniteGridCommandRecorder gridRecorder(
-            vulkan, swapchain, vertexShader, fragmentShader);
-        IRenderCommandRecorder& renderCommandRecorder = gridRecorder;
+        TessellatedDuckCommandRecorder tessellatedDuckRecorder(
+            vulkan,
+            swapchain,
+            vertexShader,
+            tessellationControlShader,
+            tessellationEvaluationShader,
+            geometryShader,
+            fragmentShader,
+            RUBBER_DUCK_SCENE,
+            RUBBER_DUCK_TEXTURE);
+        IRenderCommandRecorder& renderCommandRecorder = tessellatedDuckRecorder;
         FrameTimer frameTimer;
         VulkanImGuiOverlay imgui(vulkan, swapchain, window.handle());
         imgui.addPanel(std::make_unique<FpsPanel>(frameTimer));
+        imgui.addPanel(std::make_unique<TessellationPanel>(tessellatedDuckRecorder));
         // imgui.addPanel(std::make_unique<FrameGraphPanel>(frameTimer));
 
         VulkanFrameSync frameSync(vulkan, static_cast<uint32_t>(swapchain.images().size()));

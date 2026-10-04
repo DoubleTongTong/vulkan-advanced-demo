@@ -37,6 +37,11 @@ public:
         return *this;
     }
 
+    VulkanGraphicsPipelineBuilder& patchControlPoints(uint32_t count) {
+        tessellation_.patchControlPoints = count;
+        return *this;
+    }
+
     VulkanGraphicsPipelineBuilder& cullMode(VkCullModeFlags cullMode) {
         rasterization_.cullMode = cullMode;
         return *this;
@@ -154,6 +159,9 @@ public:
             .pStages = shaderStages_.data(),
             .pVertexInputState = &vertexInput,
             .pInputAssemblyState = &inputAssembly_,
+            .pTessellationState = inputAssembly_.topology == VK_PRIMITIVE_TOPOLOGY_PATCH_LIST
+                ? &tessellation_
+                : nullptr,
             .pViewportState = &viewportState,
             .pRasterizationState = &rasterization_,
             .pMultisampleState = &multisample_,
@@ -169,7 +177,7 @@ public:
     }
 
 private:
-    std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages_{};
+    std::array<VkPipelineShaderStageCreateInfo, 5> shaderStages_{};
     uint32_t shaderStageCount_ = 0;
 
     std::array<VkDynamicState, 2> dynamicStates_{};
@@ -180,6 +188,9 @@ private:
     VkPipelineInputAssemblyStateCreateInfo inputAssembly_{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
         .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+    };
+    VkPipelineTessellationStateCreateInfo tessellation_{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO,
     };
     VkPipelineRasterizationStateCreateInfo rasterization_{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
@@ -239,6 +250,21 @@ VulkanRenderPipeline::VulkanRenderPipeline(
         throw std::runtime_error("A render pipeline requires a valid color attachment format.");
     }
 
+    const bool hasTessellationControl = desc.tessellationControlShader != nullptr;
+    const bool hasTessellationEvaluation = desc.tessellationEvaluationShader != nullptr;
+    if (hasTessellationControl != hasTessellationEvaluation) {
+        throw std::runtime_error(
+            "Tessellation control and evaluation shaders must be provided together.");
+    }
+    const bool usesTessellation = hasTessellationControl && hasTessellationEvaluation;
+    if (usesTessellation != (desc.topology == VK_PRIMITIVE_TOPOLOGY_PATCH_LIST)) {
+        throw std::runtime_error(
+            "Tessellation shaders require patch-list topology, and patch-list topology requires tessellation shaders.");
+    }
+    if (usesTessellation && desc.patchControlPoints == 0) {
+        throw std::runtime_error("A tessellation pipeline requires patch control points.");
+    }
+
     createPipelineLayout(desc);
     createPipeline(desc);
 }
@@ -288,16 +314,19 @@ void VulkanRenderPipeline::bind(VkCommandBuffer commandBuffer) const {
 }
 
 void VulkanRenderPipeline::createPipelineLayout(const RenderPipelineDesc& desc) {
-    pushConstantSize_ = std::max(
-        desc.vertexShader->pushConstantSize(),
-        desc.fragmentShader->pushConstantSize());
-
     VkShaderStageFlags pushConstantStages = 0;
-    if (desc.vertexShader->pushConstantSize() > 0) {
-        pushConstantStages |= desc.vertexShader->vkStage();
-    }
-    if (desc.fragmentShader->pushConstantSize() > 0) {
-        pushConstantStages |= desc.fragmentShader->vkStage();
+    const VulkanShaderModule* shaders[] = {
+        desc.vertexShader,
+        desc.tessellationControlShader,
+        desc.tessellationEvaluationShader,
+        desc.geometryShader,
+        desc.fragmentShader,
+    };
+    for (const VulkanShaderModule* shader : shaders) {
+        if (shader && shader->pushConstantSize() > 0) {
+            pushConstantSize_ = std::max(pushConstantSize_, shader->pushConstantSize());
+            pushConstantStages |= shader->vkStage();
+        }
     }
 
     const VkPushConstantRange pushConstantRange{
@@ -342,6 +371,7 @@ void VulkanRenderPipeline::createPipeline(const RenderPipelineDesc& desc) {
         .dynamicState(VK_DYNAMIC_STATE_VIEWPORT)
         .dynamicState(VK_DYNAMIC_STATE_SCISSOR)
         .primitiveTopology(desc.topology)
+        .patchControlPoints(desc.patchControlPoints)
         .cullMode(desc.cullMode)
         .frontFace(desc.frontFace)
         .polygonMode(desc.polygonMode)
@@ -352,6 +382,15 @@ void VulkanRenderPipeline::createPipeline(const RenderPipelineDesc& desc) {
         .depthBias(desc.depthBiasEnabled, desc.depthBiasConstantFactor, desc.depthBiasSlopeFactor)
         .vertexInput(desc.vertexBindings, desc.vertexAttributes)
         .shaderStage(shaderStageInfo(*desc.vertexShader, "main"))
+        .shaderStage(desc.tessellationControlShader
+            ? shaderStageInfo(*desc.tessellationControlShader, "main")
+            : VkPipelineShaderStageCreateInfo{})
+        .shaderStage(desc.tessellationEvaluationShader
+            ? shaderStageInfo(*desc.tessellationEvaluationShader, "main")
+            : VkPipelineShaderStageCreateInfo{})
+        .shaderStage(desc.geometryShader
+            ? shaderStageInfo(*desc.geometryShader, "main")
+            : VkPipelineShaderStageCreateInfo{})
         .shaderStage(shaderStageInfo(*desc.fragmentShader, "main"));
 
     vulkan_utils::checkVk(

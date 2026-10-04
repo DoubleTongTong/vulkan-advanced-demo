@@ -300,6 +300,7 @@ add_executable(vulkan_advanced_demo
     src/rendering/InstancedMeshesCommandRecorder.cpp
     src/rendering/ReflectiveDuckCommandRecorder.cpp
     src/rendering/RubberDuckCommandRecorder.cpp
+    src/rendering/TessellatedDuckCommandRecorder.cpp
     src/rendering/TexturedDuckCommandRecorder.cpp
     src/rendering/TriangleCommandRecorder.cpp
     src/rendering/VertexPullingDuckCommandRecorder.cpp
@@ -308,6 +309,7 @@ add_executable(vulkan_advanced_demo
     src/ui/canvas/LineCanvas2D.cpp
     src/ui/graph/ScrollingGraph.cpp
     src/ui/ImGuiDemoPanel.cpp
+    src/ui/TessellationPanel.cpp
     src/ui/TextureViewerPanel.cpp
     src/VmaImplementation.cpp
     src/VulkanBuffer.cpp
@@ -338,6 +340,7 @@ target_compile_definitions(vulkan_advanced_demo
         APP_INSTANCED_CUBES_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/instanced_cubes"
         APP_INSTANCED_MESHES_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/instanced_meshes"
         APP_INFINITE_GRID_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/infinite_grid"
+        APP_TESSELLATED_DUCK_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/tessellated_duck"
         APP_SKY_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/cube_sky"
         APP_LINE_CANVAS_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/canvas/line_3d"
         RUBBER_DUCK_SCENE="${RUBBER_DUCK_SCENE}"

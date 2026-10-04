@@ -11,12 +11,16 @@ class VulkanShaderModule;
 
 struct RenderPipelineDesc {
     const VulkanShaderModule* vertexShader = nullptr;
+    const VulkanShaderModule* tessellationControlShader = nullptr;
+    const VulkanShaderModule* tessellationEvaluationShader = nullptr;
+    const VulkanShaderModule* geometryShader = nullptr;
     const VulkanShaderModule* fragmentShader = nullptr;
     std::vector<VkVertexInputBindingDescription> vertexBindings;
     std::vector<VkVertexInputAttributeDescription> vertexAttributes;
     VkFormat colorFormat = VK_FORMAT_UNDEFINED;
     VkFormat depthFormat = VK_FORMAT_UNDEFINED;
     VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    uint32_t patchControlPoints = 0;
     VkCullModeFlags cullMode = VK_CULL_MODE_NONE;
     VkFrontFace frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     VkPolygonMode polygonMode = VK_POLYGON_MODE_FILL;
