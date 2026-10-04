@@ -4,6 +4,7 @@
 #include "VulkanDescriptorSet.h"
 #include "VulkanRenderPipeline.h"
 #include "VulkanTexture2D.h"
+#include "mesh/MeshData.h"
 #include "rendering/IRenderCommandRecorder.h"
 
 #include <vulkan/vulkan.h>
@@ -33,27 +34,13 @@ public:
     const VulkanTexture2D& texture() const { return texture_; }
 
 private:
-    struct Vertex {
-        float position[3] = {};
-        float uv[2] = {};
-    };
-
-    struct SceneData {
-        std::vector<Vertex> vertices;
-        std::vector<uint32_t> indices;
-        float center[3] = {};
-        float radius = 1.0f;
-    };
-
-    static SceneData loadSceneData(const std::filesystem::path& scenePath);
-
     void createPipeline(const VulkanShaderModule& vertexShader, const VulkanShaderModule& fragmentShader);
     void createDepthAttachment();
     void destroyDepthAttachment();
 
     const VulkanContext& context_;
     const VulkanSwapchain& swapchain_;
-    SceneData sceneData_;
+    MeshData sceneData_;
     VulkanTexture2D texture_;
     VulkanDescriptorSet textureDescriptors_;
     VulkanBuffer vertexBuffer_;

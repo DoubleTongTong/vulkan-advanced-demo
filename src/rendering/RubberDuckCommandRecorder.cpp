@@ -74,7 +74,7 @@ RubberDuckCommandRecorder::RubberDuckCommandRecorder(
     const VulkanSwapchain& swapchain,
     const VulkanShaderModule& vertexShader,
     const VulkanShaderModule& fragmentShader,
-    MeshLodSet&& lodSet)
+    MeshData&& mesh)
     : context_(context),
       swapchain_(swapchain),
       vertexBuffer_(
@@ -82,8 +82,8 @@ RubberDuckCommandRecorder::RubberDuckCommandRecorder(
           {
               .usage = BufferUsage_Vertex,
               .storage = BufferStorage::Device,
-              .size = sizeof(float) * lodSet.mesh.positions.size(),
-              .data = lodSet.mesh.positions.data(),
+              .size = mesh.vertexBytes().size(),
+              .data = mesh.vertexBytes().data(),
               .debugName = "Rubber duck vertex buffer",
           }),
       solidPipeline_(
@@ -94,7 +94,7 @@ RubberDuckCommandRecorder::RubberDuckCommandRecorder(
               .vertexBindings = {
                   {
                       .binding = 0,
-                      .stride = sizeof(float) * 3,
+                      .stride = sizeof(MeshVertex),
                       .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
                   },
               },
@@ -129,7 +129,7 @@ RubberDuckCommandRecorder::RubberDuckCommandRecorder(
               .vertexBindings = {
                   {
                       .binding = 0,
-                      .stride = sizeof(float) * 3,
+                      .stride = sizeof(MeshVertex),
                       .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
                   },
               },
@@ -160,14 +160,14 @@ RubberDuckCommandRecorder::RubberDuckCommandRecorder(
               .specializationData = specializationData(1),
               .debugName = "Rubber duck wireframe pipeline",
           }),
-      meshCenter_{lodSet.mesh.center[0], lodSet.mesh.center[1], lodSet.mesh.center[2]},
-      meshRadius_(lodSet.mesh.radius),
+      meshCenter_{mesh.bounds().center[0], mesh.bounds().center[1], mesh.bounds().center[2]},
+      meshRadius_(mesh.bounds().radius),
       imageLayouts_(swapchain.images().size(), VK_IMAGE_LAYOUT_UNDEFINED) {
     if ((swapchain.imageUsage() & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) == 0) {
         throw std::runtime_error("Swapchain images do not support color attachment usage.");
     }
 
-    createIndexBuffers(lodSet);
+    createIndexBuffer(mesh);
     createDepthAttachment();
 }
 
@@ -175,26 +175,23 @@ RubberDuckCommandRecorder::~RubberDuckCommandRecorder() {
     destroyDepthAttachment();
 }
 
-void RubberDuckCommandRecorder::createIndexBuffers(const MeshLodSet& lodSet) {
-    indexBuffers_.reserve(lodSet.levels.size());
-    indexCounts_.reserve(lodSet.levels.size());
-    for (size_t lodIndex = 0; lodIndex < lodSet.levels.size(); ++lodIndex) {
-        const std::vector<uint32_t>& indices = lodSet.levels[lodIndex].indices;
-        if (indices.empty()) {
-            throw std::runtime_error("Generated mesh LOD does not contain indices.");
-        }
-
-        const std::string debugName = "Rubber duck LOD " + std::to_string(lodIndex) + " index buffer";
-        indexBuffers_.push_back(std::make_unique<VulkanBuffer>(
-            context_,
-            BufferDesc{
-                .usage = BufferUsage_Index,
-                .storage = BufferStorage::Device,
-                .size = sizeof(uint32_t) * indices.size(),
-                .data = indices.data(),
-                .debugName = debugName.c_str(),
-            }));
-        indexCounts_.push_back(static_cast<uint32_t>(indices.size()));
+void RubberDuckCommandRecorder::createIndexBuffer(const MeshData& mesh) {
+    // 所有 LOD 共用一次上传；绘制时只改变绑定偏移和索引数。
+    indexBuffer_ = std::make_unique<VulkanBuffer>(
+        context_,
+        BufferDesc{
+            .usage = BufferUsage_Index,
+            .storage = BufferStorage::Device,
+            .size = mesh.indexBytes().size(),
+            .data = mesh.indexBytes().data(),
+            .debugName = "Rubber duck packed LOD indices",
+        });
+    const MeshDescriptor& descriptor = mesh.descriptor();
+    indexOffsets_.reserve(descriptor.lodCount);
+    indexCounts_.reserve(descriptor.lodCount);
+    for (uint32_t lod = 0; lod < descriptor.lodCount; ++lod) {
+        indexOffsets_.push_back(sizeof(uint32_t) * descriptor.lodOffsets[lod]);
+        indexCounts_.push_back(descriptor.lodIndexCount(lod));
     }
 }
 
@@ -287,12 +284,12 @@ void RubberDuckCommandRecorder::record(const RenderFrameContext& frame) {
         glm::vec3(-0.70f, 0.0f, 0.0f),
         glm::vec3(0.70f, 0.0f, 0.0f),
     };
-    const size_t lodCount = std::min(indexBuffers_.size(), LodOffsets.size());
+    const size_t lodCount = std::min(indexCounts_.size(), LodOffsets.size());
     for (size_t lodIndex = 0; lodIndex < lodCount; ++lodIndex) {
         const glm::mat4 mvp = makeModelViewProjection(
             frame.view, meshCenter_, meshRadius_, LodOffsets[lodIndex], 0.55f);
         vkCmdBindIndexBuffer(
-            commandBuffer, indexBuffers_[lodIndex]->handle(), 0, VK_INDEX_TYPE_UINT32);
+            commandBuffer, indexBuffer_->handle(), indexOffsets_[lodIndex], VK_INDEX_TYPE_UINT32);
 
         solidPipeline_.bind(commandBuffer);
         vkCmdPushConstants(

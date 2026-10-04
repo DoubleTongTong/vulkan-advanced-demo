@@ -38,34 +38,28 @@ MeshData ModelLoader::loadFirstMesh(const std::filesystem::path& scenePath) {
         throw std::runtime_error("Model scene does not contain vertex normals: " + scenePath.string());
     }
 
-    MeshData data;
-    data.positions.resize(static_cast<size_t>(mesh->mNumVertices) * 3u);
-    data.normals.resize(static_cast<size_t>(mesh->mNumVertices) * 3u);
-    data.texcoords.resize(static_cast<size_t>(mesh->mNumVertices) * 2u);
-    data.indices.resize(static_cast<size_t>(mesh->mNumFaces) * 3u);
+    std::vector<MeshVertex> vertices(mesh->mNumVertices);
+    std::vector<uint32_t> indices(static_cast<size_t>(mesh->mNumFaces) * 3u);
     glm::vec3 minBounds(std::numeric_limits<float>::max());
     glm::vec3 maxBounds(std::numeric_limits<float>::lowest());
 
     for (unsigned int i = 0; i < mesh->mNumVertices; ++i) {
         const aiVector3D& vertex = mesh->mVertices[i];
-        const size_t offset = static_cast<size_t>(i) * 3u;
-        data.positions[offset + 0u] = vertex.x;
-        data.positions[offset + 1u] = vertex.y;
-        data.positions[offset + 2u] = vertex.z;
+        MeshVertex& destination = vertices[i];
+        destination.position[0] = vertex.x;
+        destination.position[1] = vertex.y;
+        destination.position[2] = vertex.z;
 
         const aiVector3D& normal = mesh->mNormals[i];
-        data.normals[offset + 0u] = normal.x;
-        data.normals[offset + 1u] = normal.y;
-        data.normals[offset + 2u] = normal.z;
+        destination.normal[0] = normal.x;
+        destination.normal[1] = normal.y;
+        destination.normal[2] = normal.z;
 
-        const size_t texcoordOffset = static_cast<size_t>(i) * 2u;
         if (mesh->HasTextureCoords(0)) {
             const aiVector3D& texcoord = mesh->mTextureCoords[0][i];
-            data.texcoords[texcoordOffset + 0u] = texcoord.x;
-            data.texcoords[texcoordOffset + 1u] = texcoord.y;
-        } else {
-            data.texcoords[texcoordOffset + 0u] = 0.0f;
-            data.texcoords[texcoordOffset + 1u] = 0.0f;
+            destination.uv[0] = texcoord.x;
+            // 图片解码以左上角为原点，只在导入边界翻转一次，后续消费者不再重复转换。
+            destination.uv[1] = 1.0f - texcoord.y;
         }
 
         minBounds.x = std::min(minBounds.x, vertex.x);
@@ -83,21 +77,22 @@ MeshData ModelLoader::loadFirstMesh(const std::filesystem::path& scenePath) {
         }
 
         const size_t offset = static_cast<size_t>(i) * 3u;
-        data.indices[offset + 0u] = face.mIndices[0];
-        data.indices[offset + 1u] = face.mIndices[1];
-        data.indices[offset + 2u] = face.mIndices[2];
+        indices[offset + 0u] = face.mIndices[0];
+        indices[offset + 1u] = face.mIndices[1];
+        indices[offset + 2u] = face.mIndices[2];
     }
 
-    if (data.positions.empty() || data.indices.empty()) {
+    if (vertices.empty() || indices.empty()) {
         throw std::runtime_error("Model scene does not contain drawable mesh data: " + scenePath.string());
     }
 
     const glm::vec3 center = (minBounds + maxBounds) * 0.5f;
     const glm::vec3 halfSize = (maxBounds - minBounds) * 0.5f;
-    data.center[0] = center.x;
-    data.center[1] = center.y;
-    data.center[2] = center.z;
-    data.radius = std::max({halfSize.x, halfSize.y, halfSize.z, 0.001f});
-
-    return data;
+    const MeshBounds bounds{
+        .min = {minBounds.x, minBounds.y, minBounds.z},
+        .max = {maxBounds.x, maxBounds.y, maxBounds.z},
+        .center = {center.x, center.y, center.z},
+        .radius = std::max({halfSize.x, halfSize.y, halfSize.z, 0.001f}),
+    };
+    return MeshData::createSingle(std::move(vertices), std::move(indices), bounds);
 }

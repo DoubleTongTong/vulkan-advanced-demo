@@ -267,9 +267,11 @@ void InstancedMeshesCommandRecorder::record(const RenderFrameContext& frame) {
     frameDescriptors.bind(commandBuffer, renderPipeline_->layout());
     struct RenderPushConstants {
         glm::mat4 viewProjection;
+        glm::vec4 meshCenterRadius;
     };
     const RenderPushConstants renderConstants{
         .viewProjection = frame.view.viewProjection,
+        .meshCenterRadius = mesh_.centerRadius(),
     };
     vkCmdPushConstants(
         commandBuffer, renderPipeline_->layout(), VK_SHADER_STAGE_VERTEX_BIT,

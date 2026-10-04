@@ -1,8 +1,9 @@
 #version 450
 
 struct Vertex {
-    vec4 position;
-    vec4 uv;
+    float px; float py; float pz;
+    float nx; float ny; float nz;
+    float u; float v;
 };
 
 layout(std430, set = 1, binding = 0) readonly buffer FrameBuffer {
@@ -22,9 +23,9 @@ layout(location = 1) out vec3 outWorldPosition;
 void main() {
     // 索引缓冲解引用后的 gl_VertexIndex 直接用于 PVP 顶点拉取。
     const Vertex vertex = kVertices.vertices[gl_VertexIndex];
-    const vec4 worldPosition = kFrame.model * vertex.position;
+    const vec4 worldPosition = kFrame.model * vec4(vertex.px, vertex.py, vertex.pz, 1.0);
 
     gl_Position = kFrame.viewProjection * worldPosition;
-    outUv = vertex.uv.xy;
+    outUv = vec2(vertex.u, vertex.v);
     outWorldPosition = worldPosition.xyz;
 }

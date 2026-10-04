@@ -17,6 +17,7 @@
 #include <vk_mem_alloc.h>
 
 #include <array>
+#include <algorithm>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -71,7 +72,7 @@ ReflectiveDuckCommandRecorder::ReflectiveDuckCommandRecorder(
     : context_(context),
       swapchain_(swapchain),
       lineCanvas_(context, swapchain),
-      sceneData_(loadSceneData(scenePath)),
+      sceneData_(ModelLoader::loadFirstMesh(scenePath)),
       texture_(context, ImageProcessor().loadRgba8(texturePath), "Reflective duck base color texture"),
       environment_(context, loadEnvironment(environmentPath), "Piazza Bologni environment cube"),
       textureDescriptors_(
@@ -91,8 +92,8 @@ ReflectiveDuckCommandRecorder::ReflectiveDuckCommandRecorder(
           {
               .usage = BufferUsage_Vertex,
               .storage = BufferStorage::Device,
-              .size = sizeof(Vertex) * sceneData_.vertices.size(),
-              .data = sceneData_.vertices.data(),
+              .size = sceneData_.vertexBytes().size(),
+              .data = sceneData_.vertexBytes().data(),
               .debugName = "Reflective duck vertex buffer",
           }),
       indexBuffer_(
@@ -100,16 +101,15 @@ ReflectiveDuckCommandRecorder::ReflectiveDuckCommandRecorder(
           {
               .usage = BufferUsage_Index,
               .storage = BufferStorage::Device,
-              .size = sizeof(uint32_t) * sceneData_.indices.size(),
-              .data = sceneData_.indices.data(),
+              .size = sceneData_.indexBytes().size(),
+              .data = sceneData_.indexBytes().data(),
               .debugName = "Reflective duck index buffer",
           }),
       imageLayouts_(swapchain.images().size(), VK_IMAGE_LAYOUT_UNDEFINED) {
-    meshCenter_[0] = sceneData_.center[0];
-    meshCenter_[1] = sceneData_.center[1];
-    meshCenter_[2] = sceneData_.center[2];
-    meshRadius_ = sceneData_.radius;
-    indexCount_ = static_cast<uint32_t>(sceneData_.indices.size());
+    const MeshBounds& bounds = sceneData_.bounds();
+    std::copy_n(bounds.center, 3, meshCenter_);
+    meshRadius_ = bounds.radius;
+    indexCount_ = static_cast<uint32_t>(sceneData_.indices().size());
 
     if ((swapchain.imageUsage() & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) == 0) {
         throw std::runtime_error("Swapchain images do not support color attachment usage.");
@@ -127,33 +127,6 @@ ReflectiveDuckCommandRecorder::~ReflectiveDuckCommandRecorder() {
     duckPipeline_.reset();
     skyPipeline_.reset();
     destroyDepthAttachment();
-}
-
-ReflectiveDuckCommandRecorder::SceneData ReflectiveDuckCommandRecorder::loadSceneData(
-    const std::filesystem::path& scenePath) {
-    const MeshData mesh = ModelLoader::loadFirstMesh(scenePath);
-    const size_t vertexCount = mesh.positions.size() / 3u;
-    if (vertexCount != mesh.normals.size() / 3u || vertexCount != mesh.texcoords.size() / 2u) {
-        throw std::runtime_error("Model vertex attributes do not match: " + scenePath.string());
-    }
-
-    SceneData data;
-    data.vertices.resize(vertexCount);
-    for (size_t i = 0; i < vertexCount; ++i) {
-        for (size_t component = 0; component < 3; ++component) {
-            data.vertices[i].position[component] = mesh.positions[i * 3u + component];
-            data.vertices[i].normal[component] = mesh.normals[i * 3u + component];
-        }
-        data.vertices[i].uv[0] = mesh.texcoords[i * 2u + 0u];
-        data.vertices[i].uv[1] = 1.0f - mesh.texcoords[i * 2u + 1u];
-    }
-
-    data.indices = mesh.indices;
-    data.center[0] = mesh.center[0];
-    data.center[1] = mesh.center[1];
-    data.center[2] = mesh.center[2];
-    data.radius = mesh.radius;
-    return data;
 }
 
 CubeMapImage ReflectiveDuckCommandRecorder::loadEnvironment(
@@ -201,7 +174,7 @@ void ReflectiveDuckCommandRecorder::createPipelines(
             .fragmentShader = &fragmentShader,
             .vertexBindings = {{
                 .binding = 0,
-                .stride = sizeof(Vertex),
+                .stride = sizeof(MeshVertex),
                 .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
             }},
             .vertexAttributes = {
@@ -209,19 +182,19 @@ void ReflectiveDuckCommandRecorder::createPipelines(
                     .location = 0,
                     .binding = 0,
                     .format = VK_FORMAT_R32G32B32_SFLOAT,
-                    .offset = offsetof(Vertex, position),
+                    .offset = offsetof(MeshVertex, position),
                 },
                 {
                     .location = 1,
                     .binding = 0,
                     .format = VK_FORMAT_R32G32B32_SFLOAT,
-                    .offset = offsetof(Vertex, normal),
+                    .offset = offsetof(MeshVertex, normal),
                 },
                 {
                     .location = 2,
                     .binding = 0,
                     .format = VK_FORMAT_R32G32_SFLOAT,
-                    .offset = offsetof(Vertex, uv),
+                    .offset = offsetof(MeshVertex, uv),
                 },
             },
             .colorFormat = swapchain_.imageFormat(),

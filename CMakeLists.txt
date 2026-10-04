@@ -294,6 +294,7 @@ add_executable(vulkan_advanced_demo
     src/main.cpp
     src/GlfwWindow.cpp
     src/mesh/ModelLoader.cpp
+    src/mesh/MeshData.cpp
     src/rendering/canvas/LineCanvas3D.cpp
     src/rendering/InfiniteGridCommandRecorder.cpp
     src/rendering/InstancedCubesCommandRecorder.cpp

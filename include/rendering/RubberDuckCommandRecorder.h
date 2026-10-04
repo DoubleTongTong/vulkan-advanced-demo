@@ -35,16 +35,17 @@ private:
         const VulkanSwapchain& swapchain,
         const VulkanShaderModule& vertexShader,
         const VulkanShaderModule& fragmentShader,
-        MeshLodSet&& lodSet);
+        MeshData&& mesh);
 
-    void createIndexBuffers(const MeshLodSet& lodSet);
+    void createIndexBuffer(const MeshData& mesh);
     void createDepthAttachment();
     void destroyDepthAttachment();
 
     const VulkanContext& context_;
     const VulkanSwapchain& swapchain_;
     VulkanBuffer vertexBuffer_;
-    std::vector<std::unique_ptr<VulkanBuffer>> indexBuffers_;
+    std::unique_ptr<VulkanBuffer> indexBuffer_;
+    std::vector<VkDeviceSize> indexOffsets_;
     std::vector<uint32_t> indexCounts_;
     VulkanRenderPipeline solidPipeline_;
     VulkanRenderPipeline wireframePipeline_;

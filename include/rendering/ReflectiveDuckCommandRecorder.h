@@ -5,6 +5,7 @@
 #include "VulkanRenderPipeline.h"
 #include "VulkanTexture2D.h"
 #include "VulkanTextureCube.h"
+#include "mesh/MeshData.h"
 #include "rendering/IRenderCommandRecorder.h"
 #include "rendering/canvas/LineCanvas3D.h"
 
@@ -37,20 +38,6 @@ public:
     void record(const RenderFrameContext& frame) override;
 
 private:
-    struct Vertex {
-        float position[3] = {};
-        float normal[3] = {};
-        float uv[2] = {};
-    };
-
-    struct SceneData {
-        std::vector<Vertex> vertices;
-        std::vector<uint32_t> indices;
-        float center[3] = {};
-        float radius = 1.0f;
-    };
-
-    static SceneData loadSceneData(const std::filesystem::path& scenePath);
     static CubeMapImage loadEnvironment(const std::filesystem::path& environmentPath);
 
     void createPipelines(
@@ -65,7 +52,7 @@ private:
     const VulkanContext& context_;
     const VulkanSwapchain& swapchain_;
     LineCanvas3D lineCanvas_;
-    SceneData sceneData_;
+    MeshData sceneData_;
     VulkanTexture2D texture_;
     VulkanTextureCube environment_;
     VulkanDescriptorSet textureDescriptors_;

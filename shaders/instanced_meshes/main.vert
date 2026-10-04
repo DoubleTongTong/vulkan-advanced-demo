@@ -1,9 +1,9 @@
 #version 450
 
 struct Vertex {
-    vec4 position;
-    vec4 normal;
-    vec4 uv;
+    float px; float py; float pz;
+    float nx; float ny; float nz;
+    float u; float v;
 };
 
 layout(std430, set = 1, binding = 1) readonly buffer MatrixBuffer {
@@ -16,6 +16,7 @@ layout(std430, set = 1, binding = 2) readonly buffer VertexBuffer {
 
 layout(push_constant) uniform PushConstants {
     mat4 viewProjection;
+    vec4 meshCenterRadius;
 } pc;
 
 layout(location = 0) out vec2 outUv;
@@ -33,11 +34,13 @@ void main() {
     const mat4 model = kMatrices.models[gl_InstanceIndex];
     const float meshScale = 5.0;
 
-    gl_Position = pc.viewProjection * model *
-                  vec4(meshScale * vertex.position.xyz, 1.0);
-    outUv = vertex.uv.xy;
+    const vec3 localPosition =
+        (vec3(vertex.px, vertex.py, vertex.pz) - pc.meshCenterRadius.xyz) /
+        pc.meshCenterRadius.w;
+    gl_Position = pc.viewProjection * model * vec4(meshScale * localPosition, 1.0);
+    outUv = vec2(vertex.u, vertex.v);
 
     // model 只有旋转和平移，没有非均匀缩放，因此无需 inverse-transpose。
-    outNormal = mat3(model) * vertex.normal.xyz;
+    outNormal = mat3(model) * vec3(vertex.nx, vertex.ny, vertex.nz);
     outColor = colors[gl_InstanceIndex % 3];
 }

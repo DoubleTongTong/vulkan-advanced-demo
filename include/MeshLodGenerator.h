@@ -2,26 +2,13 @@
 
 #include "mesh/MeshData.h"
 
-#include <cstdint>
 #include <span>
-#include <vector>
 
-// 一组 LOD 共用 MeshLodSet::mesh 中的顶点，只各自持有不同的三角形索引。
-struct MeshLod {
-    float triangleRatio = 1.0f;
-    std::vector<uint32_t> indices;
-};
-
-struct MeshLodSet {
-    MeshData mesh;
-    std::vector<MeshLod> levels;
-};
-
-// 将通用 MeshData 重排为适合 GPU 访问的形式，并生成离散 LOD 索引。
+// 优化统一顶点数据，并把所有 LOD 索引紧邻地写入同一个 MeshData 索引块。
 class MeshLodGenerator {
 public:
     // simplificationRatios 取值在 (0, 1)，例如 0.2 表示目标保留约 20% 三角形。
-    static MeshLodSet generate(
+    static MeshData generate(
         const MeshData& source,
         std::span<const float> simplificationRatios);
 };
