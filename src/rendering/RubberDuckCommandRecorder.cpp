@@ -1,6 +1,6 @@
 #include "rendering/RubberDuckCommandRecorder.h"
 
-#include "mesh/ModelLoader.h"
+#include "mesh/GeometryCache.h"
 #include "VulkanShaderModule.h"
 #include "VulkanSwapchain.h"
 #include "VulkanContext.h"
@@ -65,8 +65,7 @@ RubberDuckCommandRecorder::RubberDuckCommandRecorder(
           swapchain,
           vertexShader,
           fragmentShader,
-          MeshLodGenerator::generate(
-              ModelLoader::loadFirstMesh(scenePath), SimplificationRatios)) {
+          GeometryCache::loadOrConvert(scenePath, SimplificationRatios)) {
 }
 
 RubberDuckCommandRecorder::RubberDuckCommandRecorder(

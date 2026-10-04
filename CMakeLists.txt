@@ -293,6 +293,7 @@ add_executable(vulkan_advanced_demo
     src/SceneCamera.cpp
     src/main.cpp
     src/GlfwWindow.cpp
+    src/mesh/GeometryCache.cpp
     src/mesh/ModelLoader.cpp
     src/mesh/MeshData.cpp
     src/rendering/canvas/LineCanvas3D.cpp
@@ -342,6 +343,7 @@ target_compile_definitions(vulkan_advanced_demo
         APP_INSTANCED_MESHES_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/instanced_meshes"
         APP_INFINITE_GRID_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/infinite_grid"
         APP_TESSELLATED_DUCK_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/tessellated_duck"
+        APP_MESH_CACHE_DIR="${CMAKE_SOURCE_DIR}/.cache/meshes"
         APP_SKY_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/cube_sky"
         APP_LINE_CANVAS_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/canvas/line_3d"
         RUBBER_DUCK_SCENE="${RUBBER_DUCK_SCENE}"

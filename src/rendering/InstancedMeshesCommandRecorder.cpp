@@ -7,7 +7,7 @@
 #include "VulkanShaderModule.h"
 #include "VulkanSwapchain.h"
 #include "VulkanUtils.h"
-#include "mesh/ModelLoader.h"
+#include "mesh/GeometryCache.h"
 
 #include <glm/mat4x4.hpp>
 #include <glm/vec4.hpp>
@@ -89,7 +89,7 @@ InstancedMeshesCommandRecorder::InstancedMeshesCommandRecorder(
     : context_(context),
       swapchain_(swapchain),
       texture_(context, ImageProcessor().loadRgba8(texturePath), "Instanced mesh base color"),
-      mesh_(context, ModelLoader::loadFirstMesh(scenePath)),
+      mesh_(context, GeometryCache::loadOrConvert(scenePath)),
       instances_(makeInstances(context)),
       matrixBuffers_(makeMatrixBuffers(context)),
       textureDescriptors_(

@@ -2,7 +2,7 @@
 
 #include "CubeMapProcessor.h"
 #include "ImageProcessor.h"
-#include "mesh/ModelLoader.h"
+#include "mesh/GeometryCache.h"
 #include "VulkanContext.h"
 #include "VulkanProfiler.h"
 #include "VulkanShaderModule.h"
@@ -72,7 +72,7 @@ ReflectiveDuckCommandRecorder::ReflectiveDuckCommandRecorder(
     : context_(context),
       swapchain_(swapchain),
       lineCanvas_(context, swapchain),
-      sceneData_(ModelLoader::loadFirstMesh(scenePath)),
+      sceneData_(GeometryCache::loadOrConvert(scenePath)),
       texture_(context, ImageProcessor().loadRgba8(texturePath), "Reflective duck base color texture"),
       environment_(context, loadEnvironment(environmentPath), "Piazza Bologni environment cube"),
       textureDescriptors_(

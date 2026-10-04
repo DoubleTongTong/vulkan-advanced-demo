@@ -1,7 +1,7 @@
 #include "rendering/VertexPullingDuckCommandRecorder.h"
 
 #include "ImageProcessor.h"
-#include "mesh/ModelLoader.h"
+#include "mesh/GeometryCache.h"
 #include "VulkanContext.h"
 #include "VulkanProfiler.h"
 #include "VulkanShaderModule.h"
@@ -47,7 +47,7 @@ VertexPullingDuckCommandRecorder::VertexPullingDuckCommandRecorder(
     : context_(context),
       swapchain_(swapchain),
       texture_(context, ImageProcessor().loadRgba8(texturePath), "Vertex pulling duck base color texture"),
-      mesh_(context, ModelLoader::loadFirstMesh(scenePath)),
+      mesh_(context, GeometryCache::loadOrConvert(scenePath)),
       vertexDescriptors_(
           context,
           {

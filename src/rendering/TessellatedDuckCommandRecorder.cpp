@@ -7,7 +7,7 @@
 #include "VulkanShaderModule.h"
 #include "VulkanSwapchain.h"
 #include "VulkanUtils.h"
-#include "mesh/ModelLoader.h"
+#include "mesh/GeometryCache.h"
 
 #include <glm/mat4x4.hpp>
 #include <glm/vec4.hpp>
@@ -67,7 +67,7 @@ TessellatedDuckCommandRecorder::TessellatedDuckCommandRecorder(
     : context_(context),
       swapchain_(swapchain),
       texture_(context, ImageProcessor().loadRgba8(texturePath), "Tessellated duck base color"),
-      mesh_(context, ModelLoader::loadFirstMesh(scenePath)),
+      mesh_(context, GeometryCache::loadOrConvert(scenePath)),
       frameDataBuffers_(makeFrameDataBuffers(context)),
       textureDescriptors_(
           context,

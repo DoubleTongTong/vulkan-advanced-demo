@@ -1,7 +1,7 @@
 #include "rendering/TexturedDuckCommandRecorder.h"
 
 #include "ImageProcessor.h"
-#include "mesh/ModelLoader.h"
+#include "mesh/GeometryCache.h"
 #include "VulkanContext.h"
 #include "VulkanProfiler.h"
 #include "VulkanShaderModule.h"
@@ -55,7 +55,7 @@ TexturedDuckCommandRecorder::TexturedDuckCommandRecorder(
     const std::filesystem::path& texturePath)
     : context_(context),
       swapchain_(swapchain),
-      sceneData_(ModelLoader::loadFirstMesh(scenePath)),
+      sceneData_(GeometryCache::loadOrConvert(scenePath)),
       texture_(context, ImageProcessor().loadRgba8(texturePath), "Rubber duck base color texture"),
       textureDescriptors_(
           context,

@@ -1,8 +1,8 @@
 #pragma once
 
-#include "MeshLodGenerator.h"
 #include "VulkanBuffer.h"
 #include "VulkanRenderPipeline.h"
+#include "mesh/MeshData.h"
 #include "rendering/IRenderCommandRecorder.h"
 
 #include <vulkan/vulkan.h>
