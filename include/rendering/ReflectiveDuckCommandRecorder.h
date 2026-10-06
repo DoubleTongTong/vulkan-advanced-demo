@@ -2,6 +2,7 @@
 
 #include "VulkanBuffer.h"
 #include "VulkanDescriptorSet.h"
+#include "VulkanDepthAttachment.h"
 #include "VulkanRenderPipeline.h"
 #include "VulkanTexture2D.h"
 #include "VulkanTextureCube.h"
@@ -18,8 +19,6 @@
 class VulkanContext;
 class VulkanShaderModule;
 class VulkanSwapchain;
-struct VmaAllocation_T;
-using VmaAllocation = VmaAllocation_T*;
 
 class ReflectiveDuckCommandRecorder final : public IRenderCommandRecorder {
 public:
@@ -33,8 +32,6 @@ public:
         const std::filesystem::path& scenePath,
         const std::filesystem::path& texturePath,
         const std::filesystem::path& environmentPath);
-    ~ReflectiveDuckCommandRecorder();
-
     void record(const RenderFrameContext& frame) override;
 
 private:
@@ -46,8 +43,6 @@ private:
         const VulkanShaderModule& skyVertexShader,
         const VulkanShaderModule& skyFragmentShader);
     void buildDebugCanvas();
-    void createDepthAttachment();
-    void destroyDepthAttachment();
 
     const VulkanContext& context_;
     const VulkanSwapchain& swapchain_;
@@ -60,10 +55,7 @@ private:
     VulkanBuffer indexBuffer_;
     std::unique_ptr<VulkanRenderPipeline> duckPipeline_;
     std::unique_ptr<VulkanRenderPipeline> skyPipeline_;
-    VkImage depthImage_ = VK_NULL_HANDLE;
-    VkImageView depthImageView_ = VK_NULL_HANDLE;
-    VmaAllocation depthAllocation_ = nullptr;
-    VkImageLayout depthLayout_ = VK_IMAGE_LAYOUT_UNDEFINED;
+    VulkanDepthAttachment depthAttachment_;
     float meshCenter_[3] = {};
     float meshRadius_ = 1.0f;
     uint32_t indexCount_ = 0;

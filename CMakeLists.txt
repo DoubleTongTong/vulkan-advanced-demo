@@ -330,6 +330,7 @@ add_executable(vulkan_advanced_demo
     src/VulkanComputePipeline.cpp
     src/VulkanDebugMessenger.cpp
     src/VulkanDescriptorSet.cpp
+    src/VulkanDepthAttachment.cpp
     src/VulkanFrameSync.cpp
     src/VulkanImmediateCommands.cpp
     src/VulkanImGuiOverlay.cpp

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "VulkanDescriptorSet.h"
+#include "VulkanDepthAttachment.h"
 #include "rendering/mesh/vertex_pulling/VertexPullingMesh.h"
 #include "VulkanRenderPipeline.h"
 #include "VulkanTexture2D.h"
@@ -15,8 +16,6 @@
 class VulkanContext;
 class VulkanShaderModule;
 class VulkanSwapchain;
-struct VmaAllocation_T;
-using VmaAllocation = VmaAllocation_T*;
 
 // 使用 gl_VertexIndex 从 storage buffer 拉取顶点属性的纹理化鸭子示例。
 class VertexPullingDuckCommandRecorder final : public IRenderCommandRecorder {
@@ -28,14 +27,9 @@ public:
         const VulkanShaderModule& fragmentShader,
         const std::filesystem::path& scenePath,
         const std::filesystem::path& texturePath);
-    ~VertexPullingDuckCommandRecorder();
-
     void record(const RenderFrameContext& frame) override;
 
 private:
-    void createDepthAttachment();
-    void destroyDepthAttachment();
-
     const VulkanContext& context_;
     const VulkanSwapchain& swapchain_;
     VulkanTexture2D texture_;
@@ -43,9 +37,6 @@ private:
     VulkanDescriptorSet vertexDescriptors_;
     VulkanDescriptorSet textureDescriptors_;
     std::unique_ptr<VulkanRenderPipeline> pipeline_;
-    VkImage depthImage_ = VK_NULL_HANDLE;
-    VkImageView depthImageView_ = VK_NULL_HANDLE;
-    VmaAllocation depthAllocation_ = nullptr;
-    VkImageLayout depthLayout_ = VK_IMAGE_LAYOUT_UNDEFINED;
+    VulkanDepthAttachment depthAttachment_;
     std::vector<VkImageLayout> imageLayouts_;
 };
