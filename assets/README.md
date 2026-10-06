@@ -4,9 +4,20 @@
 
 ## Bistro 数据集
 
-BC7 纹理压缩示例默认使用 Amazon Lumberyard Bistro 数据集中的纹理资源。这个数据集体积较大，不提交到 Git。
+间接绘制示例使用 Amazon Lumberyard Bistro 的室外场景，BC7 纹理压缩示例使用其中一张纹理。这个数据集体积较大，不提交到 Git。
 
-可以从下面地址下载 Bistro 数据集，并把解压后的内容放到本目录：
+可以从下面地址下载 Bistro 数据集。解压后将五个目录放到 `assets/bistro/`，最终结构应为：
+
+```text
+assets/bistro/
+├── BuildingTextures/
+├── Exterior/
+│   ├── exterior.obj
+│   └── exterior.mtl
+├── Interior/
+├── OtherTextures/
+└── PropTextures/
+```
 
 https://casual-effects.com/data/
 

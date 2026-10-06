@@ -62,6 +62,7 @@ set(ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "" FORCE)
 set(ASSIMP_NO_EXPORT ON CACHE BOOL "" FORCE)
 set(ASSIMP_BUILD_ALL_IMPORTERS_BY_DEFAULT OFF CACHE BOOL "" FORCE)
 set(ASSIMP_BUILD_GLTF_IMPORTER ON CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_OBJ_IMPORTER ON CACHE BOOL "" FORCE)
 
 FetchContent_Declare(
     glfw
@@ -147,9 +148,10 @@ endif()
 # BC7 demo 使用 Bistro 数据集中的一张真实纹理做验证。
 # assets/ 默认只提交 README；如果没有下载数据集，配置阶段就给出明确提示。
 set(BC7_DEMO_INPUT_TEXTURE
-    "${CMAKE_SOURCE_DIR}/assets/PropTextures/Bistro/Paris_Painting_01/Paris_Paintings_01_Diff.png"
+    "${CMAKE_SOURCE_DIR}/assets/bistro/PropTextures/Bistro/Paris_Painting_01/Paris_Paintings_01_Diff.png"
 )
 
+set(BISTRO_SCENE "${CMAKE_SOURCE_DIR}/assets/bistro/Exterior/exterior.obj")
 set(RUBBER_DUCK_SCENE "${CMAKE_SOURCE_DIR}/assets/rubber_duck/scene.gltf")
 set(RUBBER_DUCK_TEXTURE "${CMAKE_SOURCE_DIR}/assets/rubber_duck/textures/Duck_baseColor.png")
 set(PIAZZA_ENVIRONMENT "${CMAKE_SOURCE_DIR}/assets/piazza_bologni_1k.hdr")
@@ -159,6 +161,14 @@ if(NOT EXISTS "${BC7_DEMO_INPUT_TEXTURE}")
         "BC7 demo requires the Bistro texture dataset, but the sample texture was not found:\n"
         "  ${BC7_DEMO_INPUT_TEXTURE}\n"
         "Please follow assets/README.md to download the Bistro dataset and place its contents under assets/."
+    )
+endif()
+
+if(NOT EXISTS "${BISTRO_SCENE}")
+    message(FATAL_ERROR
+        "Indirect rendering demo requires the Lumberyard Bistro exterior scene:\n"
+        "  ${BISTRO_SCENE}\n"
+        "Please follow assets/README.md to install the dataset under assets/bistro/."
     )
 endif()
 
@@ -298,6 +308,7 @@ add_executable(vulkan_advanced_demo
     src/mesh/MeshData.cpp
     src/rendering/canvas/LineCanvas3D.cpp
     src/rendering/InfiniteGridCommandRecorder.cpp
+    src/rendering/IndirectBistroCommandRecorder.cpp
     src/rendering/InstancedCubesCommandRecorder.cpp
     src/rendering/InstancedMeshesCommandRecorder.cpp
     src/rendering/ReflectiveDuckCommandRecorder.cpp
@@ -332,6 +343,7 @@ add_executable(vulkan_advanced_demo
     src/VulkanUtils.cpp
     src/rendering/mesh/vertex_pulling/VertexPullingMesh.cpp
     src/rendering/mesh/instanced/InstancedMesh.cpp
+    src/rendering/mesh/indirect/IndirectMesh.cpp
 )
 
 target_compile_definitions(vulkan_advanced_demo
@@ -342,11 +354,13 @@ target_compile_definitions(vulkan_advanced_demo
         APP_INSTANCED_CUBES_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/instanced_cubes"
         APP_INSTANCED_MESHES_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/instanced_meshes"
         APP_INFINITE_GRID_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/infinite_grid"
+        APP_INDIRECT_BISTRO_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/indirect_bistro"
         APP_TESSELLATED_DUCK_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/tessellated_duck"
         APP_MESH_CACHE_DIR="${CMAKE_SOURCE_DIR}/.cache/meshes"
         APP_SKY_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/cube_sky"
         APP_LINE_CANVAS_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/canvas/line_3d"
         RUBBER_DUCK_SCENE="${RUBBER_DUCK_SCENE}"
+        BISTRO_SCENE="${BISTRO_SCENE}"
         RUBBER_DUCK_TEXTURE="${RUBBER_DUCK_TEXTURE}"
         PIAZZA_ENVIRONMENT="${PIAZZA_ENVIRONMENT}"
         APP_IMGUI_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/imgui"

@@ -64,10 +64,37 @@ public:
     std::span<const std::byte> indexBytes() const;
 
 private:
+    friend class MeshDataBuilder;
+
+    MeshData() = default;
     void validate() const;
 
     std::vector<MeshDescriptor> meshes_;
     std::vector<MeshBounds> bounds_;
     std::vector<MeshVertex> vertexData_;
     std::vector<uint32_t> indexData_;
+};
+
+struct MeshWriteView final {
+    size_t meshIndex = 0;
+    std::span<MeshVertex> vertices;
+    std::span<uint32_t> indices;
+};
+
+// 多 Mesh 构建器直接在 MeshData 的最终连续数组中分配可写区间，
+// 避免大型场景先生成逐 Mesh 临时数组，再复制到全局 Blob。
+class MeshDataBuilder final {
+public:
+    MeshDataBuilder(size_t meshCapacity, size_t vertexCapacity, size_t indexCapacity);
+
+    MeshWriteView appendMesh(
+        uint32_t vertexCount,
+        uint32_t indexCount,
+        uint32_t materialId = 0);
+    void setBounds(size_t meshIndex, const MeshBounds& bounds);
+    MeshData build();
+
+private:
+    MeshData data_;
+    bool built_ = false;
 };

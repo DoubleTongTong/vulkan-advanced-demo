@@ -16,6 +16,7 @@ enum BufferUsageBits : uint32_t {
     BufferUsage_Storage = 1u << 3u,
     BufferUsage_TransferSrc = 1u << 4u,
     BufferUsage_TransferDst = 1u << 5u,
+    BufferUsage_Indirect = 1u << 6u,
 };
 
 enum class BufferStorage {

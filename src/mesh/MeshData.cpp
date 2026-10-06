@@ -95,6 +95,67 @@ MeshData MeshData::createSingle(
     return result;
 }
 
+MeshDataBuilder::MeshDataBuilder(
+    size_t meshCapacity,
+    size_t vertexCapacity,
+    size_t indexCapacity) {
+    data_.meshes_.reserve(meshCapacity);
+    data_.bounds_.reserve(meshCapacity);
+    data_.vertexData_.reserve(vertexCapacity);
+    data_.indexData_.reserve(indexCapacity);
+}
+
+MeshWriteView MeshDataBuilder::appendMesh(
+    uint32_t vertexCount,
+    uint32_t indexCount,
+    uint32_t materialId) {
+    if (built_) {
+        throw std::logic_error("Cannot append to a completed mesh data builder.");
+    }
+    if (vertexCount == 0 || indexCount == 0 || indexCount % 3u != 0u) {
+        throw std::invalid_argument("A mesh must contain vertices and triangle indices.");
+    }
+
+    const uint32_t vertexOffset = checkedU32(data_.vertexData_.size(), "Vertex offset");
+    const uint32_t indexOffset = checkedU32(data_.indexData_.size(), "Index offset");
+    checkedU32(data_.vertexData_.size() + vertexCount, "Total vertex count");
+    checkedU32(data_.indexData_.size() + indexCount, "Total index count");
+
+    MeshDescriptor descriptor{
+        .indexOffset = indexOffset,
+        .vertexOffset = vertexOffset,
+        .vertexCount = vertexCount,
+        .materialId = materialId,
+    };
+    descriptor.lodOffsets[1] = indexCount;
+    data_.meshes_.push_back(descriptor);
+    data_.bounds_.emplace_back();
+    data_.vertexData_.resize(data_.vertexData_.size() + vertexCount);
+    data_.indexData_.resize(data_.indexData_.size() + indexCount);
+
+    return {
+        .meshIndex = data_.meshes_.size() - 1,
+        .vertices = std::span(data_.vertexData_).subspan(vertexOffset, vertexCount),
+        .indices = std::span(data_.indexData_).subspan(indexOffset, indexCount),
+    };
+}
+
+void MeshDataBuilder::setBounds(size_t meshIndex, const MeshBounds& bounds) {
+    if (built_) {
+        throw std::logic_error("Cannot modify a completed mesh data builder.");
+    }
+    data_.bounds_.at(meshIndex) = bounds;
+}
+
+MeshData MeshDataBuilder::build() {
+    if (built_) {
+        throw std::logic_error("Mesh data builder can only be completed once.");
+    }
+    data_.validate();
+    built_ = true;
+    return std::move(data_);
+}
+
 MeshData MeshData::load(const std::filesystem::path& path) {
     const File file = openFile(path, L"rb");
     MeshFileHeader header;

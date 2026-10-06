@@ -10,10 +10,9 @@
 #include "VulkanSwapchain.h"
 #include "VulkanUtils.h"
 #include "rendering/IRenderCommandRecorder.h"
-#include "rendering/TessellatedDuckCommandRecorder.h"
+#include "rendering/IndirectBistroCommandRecorder.h"
 #include "ui/FrameGraphPanel.h"
 #include "ui/FpsPanel.h"
-#include "ui/TessellationPanel.h"
 
 #include <cstdint>
 #include <exception>
@@ -30,53 +29,46 @@ int main() {
         // 先完成 Vulkan 最基础的上下文创建：instance、surface、device 和 graphics queue。
         VulkanContext vulkan(window.handle());
 
-        const std::filesystem::path shaderDir = APP_TESSELLATED_DUCK_SHADER_DIR;
+        const std::filesystem::path shaderDir = APP_INDIRECT_BISTRO_SHADER_DIR;
         const VulkanShaderModule vertexShader =
             VulkanShaderModule::fromFile(vulkan, shaderDir / "main.vert");
-        const VulkanShaderModule tessellationControlShader =
-            VulkanShaderModule::fromFile(vulkan, shaderDir / "main.tesc");
-        const VulkanShaderModule tessellationEvaluationShader =
-            VulkanShaderModule::fromFile(vulkan, shaderDir / "main.tese");
         const VulkanShaderModule geometryShader =
             VulkanShaderModule::fromFile(vulkan, shaderDir / "main.geom");
         const VulkanShaderModule fragmentShader =
             VulkanShaderModule::fromFile(vulkan, shaderDir / "main.frag");
 
-        std::cout << "Created tessellation shader pipeline modules.\n";
+        std::cout << "Created Bistro indirect rendering shader modules.\n";
 
         // Swapchain 管理一组可以呈现到窗口上的图像，后续渲染会围绕它展开。
         VulkanSwapchain swapchain(vulkan, window.width(), window.height());
 
         // ImmediateCommands 只负责命令缓冲的申请、提交和回收，不关心里面录制什么。
         VulkanImmediateCommands commands(vulkan, "Main immediate commands");
-        // 从斜前方观察归一化后的鸭子；Home 可以随时恢复这个视角。
+        // Bistro 很大，这里从街区一角开始观察，而不是缩放到完整包围盒。
+        // Home 可以随时回到这个视角，再使用 WASD 和鼠标右键探索场景。
         SceneCamera sceneCamera(
             window.handle(),
             FirstPersonCamera::Settings{
-                .position = {2.5f, 1.5f, 2.5f},
+                .position = {-1000.0f, 300.0f, -290.0f},
                 .target = {0.0f, 0.0f, 0.0f},
-                .maxSpeed = 4.0f,
+                .maxSpeed = 18.0f,
             },
             SceneCamera::Lens{
                 .verticalFieldOfViewDegrees = 45.0f,
-                .nearPlane = 0.1f,
-                .farPlane = 100.0f,
+                .nearPlane = 0.2f,
+                .farPlane = 25000.0f,
             });
-        TessellatedDuckCommandRecorder tessellatedDuckRecorder(
+        IndirectBistroCommandRecorder bistroRecorder(
             vulkan,
             swapchain,
             vertexShader,
-            tessellationControlShader,
-            tessellationEvaluationShader,
             geometryShader,
             fragmentShader,
-            RUBBER_DUCK_SCENE,
-            RUBBER_DUCK_TEXTURE);
-        IRenderCommandRecorder& renderCommandRecorder = tessellatedDuckRecorder;
+            BISTRO_SCENE);
+        IRenderCommandRecorder& renderCommandRecorder = bistroRecorder;
         FrameTimer frameTimer;
         VulkanImGuiOverlay imgui(vulkan, swapchain, window.handle());
         imgui.addPanel(std::make_unique<FpsPanel>(frameTimer));
-        imgui.addPanel(std::make_unique<TessellationPanel>(tessellatedDuckRecorder));
         // imgui.addPanel(std::make_unique<FrameGraphPanel>(frameTimer));
 
         VulkanFrameSync frameSync(vulkan, static_cast<uint32_t>(swapchain.images().size()));

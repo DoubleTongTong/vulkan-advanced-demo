@@ -183,6 +183,9 @@ VkBufferUsageFlags VulkanBuffer::toVkUsageFlags(uint32_t usage, BufferStorage st
     if (usage & BufferUsage_TransferDst) {
         flags |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
     }
+    if (usage & BufferUsage_Indirect) {
+        flags |= VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT;
+    }
 
     if (storage == BufferStorage::Device) {
         flags |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;

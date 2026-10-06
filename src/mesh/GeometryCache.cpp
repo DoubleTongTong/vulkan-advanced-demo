@@ -21,7 +21,8 @@ const std::filesystem::path CacheDirectory = ".cache/meshes";
 
 // 修改导入规则、LOD 算法参数或顶点预处理方式时递增此值。
 // 它与 MeshFileVersion 分工：前者描述“怎么转换”，后者描述“怎么存储”。
-constexpr uint32_t GeometryConversionVersion = 1;
+// v2 起，模型导入固定转换整个场景，而不再只取第一个 Mesh。
+constexpr uint32_t GeometryConversionVersion = 2;
 
 // 使用稳定的 FNV-1a，而不是实现可以改变结果的 std::hash。
 void hashBytes(uint64_t& hash, const void* data, size_t size) {
@@ -104,7 +105,7 @@ MeshData GeometryCache::loadOrConvert(
     }
 
     std::cout << "Converting geometry: " << sourcePath.string() << '\n';
-    MeshData converted = ModelLoader::loadFirstMesh(sourcePath);
+    MeshData converted = ModelLoader::load(sourcePath);
     if (!lodRatios.empty()) {
         converted = MeshLodGenerator::generate(converted, lodRatios);
     }

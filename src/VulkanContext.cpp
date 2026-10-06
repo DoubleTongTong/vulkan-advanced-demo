@@ -347,6 +347,7 @@ void VulkanContext::createLogicalDevice() {
         .features = {
             .geometryShader = VK_TRUE,
             .tessellationShader = VK_TRUE,
+            .multiDrawIndirect = VK_TRUE,
             .fillModeNonSolid = VK_TRUE,
         },
     };
@@ -463,6 +464,7 @@ bool VulkanContext::deviceSupportsRequiredFeatures(VkPhysicalDevice device) cons
            vulkan12Features.runtimeDescriptorArray == VK_TRUE &&
            vulkan13Features.dynamicRendering == VK_TRUE &&
            vulkan13Features.synchronization2 == VK_TRUE &&
+           features.features.multiDrawIndirect == VK_TRUE &&
            features.features.geometryShader == VK_TRUE &&
            features.features.tessellationShader == VK_TRUE &&
            features.features.fillModeNonSolid == VK_TRUE;
