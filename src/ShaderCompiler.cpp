@@ -236,6 +236,13 @@ ShaderReflection ShaderCompiler::reflect(const std::vector<uint8_t>& spirv) {
             } else {
                 return {.message = "SPIR-V reflection found an unsupported sampled image dimension."};
             }
+        } else if (binding->descriptor_type == SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE) {
+            type = ShaderDescriptorType::StorageImage;
+            if (binding->image.dim == SpvDim2D) {
+                imageDimension = ShaderImageDimension::Image2D;
+            } else {
+                return {.message = "SPIR-V reflection found an unsupported storage image dimension."};
+            }
         } else if (binding->descriptor_type == SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER) {
             type = ShaderDescriptorType::StorageBuffer;
         } else {

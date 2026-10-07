@@ -3,6 +3,7 @@
 #include "VulkanBuffer.h"
 #include "VulkanContext.h"
 #include "VulkanShaderModule.h"
+#include "VulkanStorageTexture2D.h"
 #include "VulkanTexture2D.h"
 #include "VulkanTextureCube.h"
 #include "VulkanUtils.h"
@@ -24,6 +25,8 @@ VkDescriptorType toVkDescriptorType(ShaderDescriptorType type) {
         return VK_DESCRIPTOR_TYPE_SAMPLER;
     case ShaderDescriptorType::SampledImage:
         return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    case ShaderDescriptorType::StorageImage:
+        return VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
     case ShaderDescriptorType::StorageBuffer:
         return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     }
@@ -183,6 +186,25 @@ void VulkanDescriptorSet::writeTextureCube(
         name, index, texture.imageView(), texture.layout(), ShaderImageDimension::Cube);
 }
 
+void VulkanDescriptorSet::writeTexture2D(
+    std::string_view name,
+    uint32_t index,
+    const VulkanStorageTexture2D& texture) {
+    writeSampledImage(
+        name,
+        index,
+        texture.imageView(),
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        ShaderImageDimension::Image2D);
+}
+
+void VulkanDescriptorSet::writeStorageImage2D(
+    std::string_view name,
+    uint32_t index,
+    const VulkanStorageTexture2D& texture) {
+    writeStorageImage(name, index, texture.imageView(), ShaderImageDimension::Image2D);
+}
+
 void VulkanDescriptorSet::bind(
     VkCommandBuffer commandBuffer,
     VkPipelineLayout pipelineLayout) const {
@@ -246,6 +268,30 @@ void VulkanDescriptorSet::writeSampledImage(
     const VkDescriptorImageInfo imageInfo{
         .imageView = view,
         .imageLayout = layout,
+    };
+    const VkWriteDescriptorSet write{
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = set_,
+        .dstBinding = item.binding,
+        .dstArrayElement = index,
+        .descriptorCount = 1,
+        .descriptorType = item.descriptorType,
+        .pImageInfo = &imageInfo,
+    };
+    vkUpdateDescriptorSets(context_->device(), 1, &write, 0, nullptr);
+}
+
+void VulkanDescriptorSet::writeStorageImage(
+    std::string_view name,
+    uint32_t index,
+    VkImageView view,
+    ShaderImageDimension dimension) {
+    const Binding& item = binding(name, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, dimension);
+    checkArrayIndex(item, index);
+
+    const VkDescriptorImageInfo imageInfo{
+        .imageView = view,
+        .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
     };
     const VkWriteDescriptorSet write{
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,

@@ -307,6 +307,7 @@ add_executable(vulkan_advanced_demo
     src/mesh/ModelLoader.cpp
     src/mesh/MeshData.cpp
     src/rendering/canvas/LineCanvas3D.cpp
+    src/rendering/ComputeTextureCommandRecorder.cpp
     src/rendering/InfiniteGridCommandRecorder.cpp
     src/rendering/IndirectBistroCommandRecorder.cpp
     src/rendering/InstancedCubesCommandRecorder.cpp
@@ -338,6 +339,7 @@ add_executable(vulkan_advanced_demo
     src/VulkanRenderPipeline.cpp
     src/VulkanShaderModule.cpp
     src/VulkanStagingUploader.cpp
+    src/VulkanStorageTexture2D.cpp
     src/VulkanSwapchain.cpp
     src/VulkanTexture2D.cpp
     src/VulkanTextureCube.cpp
@@ -354,6 +356,7 @@ target_compile_definitions(vulkan_advanced_demo
         APP_VERTEX_PULLING_DUCK_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/vertex_pulling_duck"
         APP_INSTANCED_CUBES_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/instanced_cubes"
         APP_INSTANCED_MESHES_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/instanced_meshes"
+        APP_COMPUTE_TEXTURE_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/compute_texture"
         APP_INFINITE_GRID_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/infinite_grid"
         APP_INDIRECT_BISTRO_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/indirect_bistro"
         APP_TESSELLATED_DUCK_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/tessellated_duck"

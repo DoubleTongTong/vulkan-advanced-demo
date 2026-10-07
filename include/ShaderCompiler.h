@@ -16,6 +16,7 @@ enum class ShaderStage {
 enum class ShaderDescriptorType {
     Sampler,
     SampledImage,
+    StorageImage,
     StorageBuffer,
 };
 

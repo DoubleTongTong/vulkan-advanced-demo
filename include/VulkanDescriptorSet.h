@@ -14,6 +14,7 @@ class VulkanContext;
 class VulkanShaderModule;
 class VulkanTexture2D;
 class VulkanTextureCube;
+class VulkanStorageTexture2D;
 
 struct RuntimeDescriptorArrayDesc {
     std::string name;
@@ -52,6 +53,14 @@ public:
     void fillSamplers(std::string_view name, VkSampler sampler);
     void writeSampler(std::string_view name, uint32_t index, VkSampler sampler);
     void writeTexture2D(std::string_view name, uint32_t index, const VulkanTexture2D& texture);
+    void writeTexture2D(
+        std::string_view name,
+        uint32_t index,
+        const VulkanStorageTexture2D& texture);
+    void writeStorageImage2D(
+        std::string_view name,
+        uint32_t index,
+        const VulkanStorageTexture2D& texture);
     void writeTextureCube(std::string_view name, uint32_t index, const VulkanTextureCube& texture);
 
     void bind(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout) const;
@@ -78,6 +87,11 @@ private:
         uint32_t index,
         VkImageView view,
         VkImageLayout layout,
+        ShaderImageDimension dimension);
+    void writeStorageImage(
+        std::string_view name,
+        uint32_t index,
+        VkImageView view,
         ShaderImageDimension dimension);
     void reflectBindings(const DescriptorSetDesc& desc);
     void validateLimits() const;

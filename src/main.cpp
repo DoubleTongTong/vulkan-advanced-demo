@@ -9,8 +9,8 @@
 #include "VulkanShaderModule.h"
 #include "VulkanSwapchain.h"
 #include "VulkanUtils.h"
+#include "rendering/ComputeTextureCommandRecorder.h"
 #include "rendering/IRenderCommandRecorder.h"
-#include "rendering/IndirectBistroCommandRecorder.h"
 #include "ui/FrameGraphPanel.h"
 #include "ui/FpsPanel.h"
 
@@ -29,43 +29,30 @@ int main() {
         // 先完成 Vulkan 最基础的上下文创建：instance、surface、device 和 graphics queue。
         VulkanContext vulkan(window.handle());
 
-        const std::filesystem::path shaderDir = APP_INDIRECT_BISTRO_SHADER_DIR;
+        const std::filesystem::path shaderDir = APP_COMPUTE_TEXTURE_SHADER_DIR;
+        const VulkanShaderModule computeShader =
+            VulkanShaderModule::fromFile(vulkan, shaderDir / "main.comp");
         const VulkanShaderModule vertexShader =
             VulkanShaderModule::fromFile(vulkan, shaderDir / "main.vert");
-        const VulkanShaderModule geometryShader =
-            VulkanShaderModule::fromFile(vulkan, shaderDir / "main.geom");
         const VulkanShaderModule fragmentShader =
             VulkanShaderModule::fromFile(vulkan, shaderDir / "main.frag");
 
-        std::cout << "Created Bistro indirect rendering shader modules.\n";
+        std::cout << "Created compute texture shader modules.\n";
 
         // Swapchain 管理一组可以呈现到窗口上的图像，后续渲染会围绕它展开。
         VulkanSwapchain swapchain(vulkan, window.width(), window.height());
 
         // ImmediateCommands 只负责命令缓冲的申请、提交和回收，不关心里面录制什么。
         VulkanImmediateCommands commands(vulkan, "Main immediate commands");
-        // Bistro 很大，这里从街区一角开始观察，而不是缩放到完整包围盒。
-        // Home 可以随时回到这个视角，再使用 WASD 和鼠标右键探索场景。
-        SceneCamera sceneCamera(
-            window.handle(),
-            FirstPersonCamera::Settings{
-                .position = {-1000.0f, 300.0f, -290.0f},
-                .target = {0.0f, 0.0f, 0.0f},
-                .maxSpeed = 18.0f,
-            },
-            SceneCamera::Lens{
-                .verticalFieldOfViewDegrees = 45.0f,
-                .nearPlane = 0.2f,
-                .farPlane = 25000.0f,
-            });
-        IndirectBistroCommandRecorder bistroRecorder(
+        // 全屏纹理不依赖相机，但主循环仍通过统一 RenderFrameContext 传递视图。
+        SceneCamera sceneCamera(window.handle());
+        ComputeTextureCommandRecorder computeTextureRecorder(
             vulkan,
             swapchain,
+            computeShader,
             vertexShader,
-            geometryShader,
-            fragmentShader,
-            BISTRO_SCENE);
-        IRenderCommandRecorder& renderCommandRecorder = bistroRecorder;
+            fragmentShader);
+        IRenderCommandRecorder& renderCommandRecorder = computeTextureRecorder;
         FrameTimer frameTimer;
         VulkanImGuiOverlay imgui(vulkan, swapchain, window.handle());
         imgui.addPanel(std::make_unique<FpsPanel>(frameTimer));
