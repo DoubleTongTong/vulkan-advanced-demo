@@ -14,6 +14,7 @@ class VulkanDescriptorSet;
 class VulkanContext;
 class VulkanRenderPipeline;
 class VulkanSwapchain;
+class VulkanStorageTexture2D;
 class VulkanTexture2D;
 class IImGuiPanel;
 struct GLFWwindow;
@@ -32,6 +33,7 @@ public:
 
     void addPanel(std::unique_ptr<IImGuiPanel> panel);
     uint32_t registerTexture(const VulkanTexture2D& texture);
+    uint32_t registerTexture(const VulkanStorageTexture2D& texture);
     bool wantsKeyboardInput() const;
     bool wantsMouseInput() const;
     void record(VkCommandBuffer commandBuffer, uint32_t imageIndex, uint32_t frameIndex);

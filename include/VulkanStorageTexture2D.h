@@ -14,7 +14,8 @@ public:
     VulkanStorageTexture2D(
         const VulkanContext& context,
         VkExtent2D extent,
-        const char* debugName);
+        const char* debugName,
+        VkSamplerAddressMode addressMode = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
     ~VulkanStorageTexture2D();
 
     VulkanStorageTexture2D(const VulkanStorageTexture2D&) = delete;

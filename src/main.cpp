@@ -9,8 +9,9 @@
 #include "VulkanShaderModule.h"
 #include "VulkanSwapchain.h"
 #include "VulkanUtils.h"
-#include "rendering/ComputeTextureCommandRecorder.h"
+#include "rendering/ComputedMeshCommandRecorder.h"
 #include "rendering/IRenderCommandRecorder.h"
+#include "ui/ComputedMeshPanel.h"
 #include "ui/FrameGraphPanel.h"
 #include "ui/FpsPanel.h"
 
@@ -29,33 +30,45 @@ int main() {
         // 先完成 Vulkan 最基础的上下文创建：instance、surface、device 和 graphics queue。
         VulkanContext vulkan(window.handle());
 
-        const std::filesystem::path shaderDir = APP_COMPUTE_TEXTURE_SHADER_DIR;
-        const VulkanShaderModule computeShader =
-            VulkanShaderModule::fromFile(vulkan, shaderDir / "main.comp");
+        const std::filesystem::path shaderDir = APP_COMPUTED_MESH_SHADER_DIR;
+        const VulkanShaderModule meshComputeShader =
+            VulkanShaderModule::fromFile(vulkan, shaderDir / "main_mesh.comp");
+        const VulkanShaderModule textureComputeShader =
+            VulkanShaderModule::fromFile(vulkan, shaderDir / "main_texture.comp");
         const VulkanShaderModule vertexShader =
             VulkanShaderModule::fromFile(vulkan, shaderDir / "main.vert");
+        const VulkanShaderModule geometryShader =
+            VulkanShaderModule::fromFile(vulkan, shaderDir / "main.geom");
         const VulkanShaderModule fragmentShader =
             VulkanShaderModule::fromFile(vulkan, shaderDir / "main.frag");
 
-        std::cout << "Created compute texture shader modules.\n";
+        std::cout << "Created computed mesh shader modules.\n";
 
         // Swapchain 管理一组可以呈现到窗口上的图像，后续渲染会围绕它展开。
         VulkanSwapchain swapchain(vulkan, window.width(), window.height());
 
         // ImmediateCommands 只负责命令缓冲的申请、提交和回收，不关心里面录制什么。
         VulkanImmediateCommands commands(vulkan, "Main immediate commands");
-        // 全屏纹理不依赖相机，但主循环仍通过统一 RenderFrameContext 传递视图。
-        SceneCamera sceneCamera(window.handle());
-        ComputeTextureCommandRecorder computeTextureRecorder(
+        SceneCamera sceneCamera(
+            window.handle(),
+            FirstPersonCamera::Settings{
+                .position = {0.0f, 0.0f, 22.0f},
+                .target = {0.0f, 0.0f, 0.0f},
+                .maxSpeed = 5.0f,
+            });
+        ComputedMeshCommandRecorder computedMeshRecorder(
             vulkan,
             swapchain,
-            computeShader,
+            meshComputeShader,
+            textureComputeShader,
             vertexShader,
+            geometryShader,
             fragmentShader);
-        IRenderCommandRecorder& renderCommandRecorder = computeTextureRecorder;
+        IRenderCommandRecorder& renderCommandRecorder = computedMeshRecorder;
         FrameTimer frameTimer;
         VulkanImGuiOverlay imgui(vulkan, swapchain, window.handle());
         imgui.addPanel(std::make_unique<FpsPanel>(frameTimer));
+        imgui.addPanel(std::make_unique<ComputedMeshPanel>(computedMeshRecorder));
         // imgui.addPanel(std::make_unique<FrameGraphPanel>(frameTimer));
 
         VulkanFrameSync frameSync(vulkan, static_cast<uint32_t>(swapchain.images().size()));

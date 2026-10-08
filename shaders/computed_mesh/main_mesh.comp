@@ -1,0 +1,106 @@
+#version 450
+
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+layout(push_constant) uniform MeshParameters {
+    // xy = numU/numV，zw = 当前 P/Q。
+    uvec4 gridAndCurrent;
+    // xy = 目标 P/Q。
+    uvec4 nextKnot;
+    // x = time，y = morph。
+    vec4 animation;
+} pc;
+
+struct VertexData {
+    vec4 position;
+    vec4 texCoord;
+    vec4 normal;
+};
+
+layout(std430, set = 0, binding = 0) writeonly buffer VertexBuffer {
+    VertexData vertices[];
+} kVertices;
+
+const float Tau = 6.28318530718;
+
+// 在环面结中心线上建立局部标架，再沿截面圆周挤出一根管子。
+VertexData torusKnot(vec2 uv, float p, float q) {
+    const float baseRadius = 5.0;
+    const float segmentRadius = 3.0;
+    const float tubeRadius = 0.5;
+
+    const float ct = cos(uv.x);
+    const float st = sin(uv.x);
+    const float ratio = q / p;
+    const float angle = uv.x * ratio;
+    const float sa = sin(angle);
+    const float ca = cos(angle);
+    const float radius = baseRadius + segmentRadius * ca;
+
+    const vec3 center = vec3(
+        radius * ct,
+        radius * st,
+        segmentRadius * sa);
+    const vec3 tangent = vec3(
+        -ratio * segmentRadius * sa * ct - st * radius,
+        -ratio * segmentRadius * sa * st + ct * radius,
+         ratio * segmentRadius * ca);
+
+    // 用中心位置与切线构造截面平面的两个正交方向。
+    const vec3 axis1 = normalize(cross(center, tangent));
+    const vec3 axis2 = normalize(cross(axis1, tangent));
+    const float cv = cos(uv.y);
+    const float sv = sin(uv.y);
+    const vec3 radial = normalize(axis1 * sv + axis2 * cv);
+
+    VertexData result;
+    result.position = vec4(center + tubeRadius * radial, 1.0);
+    result.texCoord = vec4(0.0);
+    result.normal = vec4(radial, 0.0);
+    return result;
+}
+
+mat3 rotateY(float angle) {
+    const float c = cos(angle);
+    const float s = sin(angle);
+    return mat3(c, 0, -s, 0, 1, 0, s, 0, c);
+}
+
+mat3 rotateZ(float angle) {
+    const float c = cos(angle);
+    const float s = sin(angle);
+    return mat3(c, -s, 0, s, c, 0, 0, 0, 1);
+}
+
+void main() {
+    const uint index = gl_GlobalInvocationID.x;
+    const uint numU = pc.gridAndCurrent.x;
+    const uint numV = pc.gridAndCurrent.y;
+    if (index >= numU * numV) {
+        return;
+    }
+
+    const uvec2 gridIndex = uvec2(index / numV, index % numV);
+    const vec2 normalizedUv = vec2(gridIndex) / vec2(numU - 1, numV - 1);
+
+    const float p1 = float(pc.gridAndCurrent.z);
+    const float q1 = float(pc.gridAndCurrent.w);
+    const float p2 = float(pc.nextKnot.x);
+    const float q2 = float(pc.nextKnot.y);
+    const VertexData from = torusKnot(
+        normalizedUv * vec2(Tau * p1, Tau), p1, q1);
+    const VertexData to = torusKnot(
+        normalizedUv * vec2(Tau * p2, Tau), p2, q2);
+
+    const float morph = pc.animation.y;
+    const vec3 position = mix(from.position.xyz, to.position.xyz, morph);
+    const vec3 normal = normalize(mix(from.normal.xyz, to.normal.xyz, morph));
+    const mat3 rotation =
+        rotateY(pc.animation.x * 0.35) * rotateZ(pc.animation.x * 0.23);
+
+    VertexData outputVertex;
+    outputVertex.position = vec4(rotation * position, 1.0);
+    outputVertex.texCoord = vec4(normalizedUv, 0.0, 0.0);
+    outputVertex.normal = vec4(normalize(rotation * normal), 0.0);
+    kVertices.vertices[index] = outputVertex;
+}

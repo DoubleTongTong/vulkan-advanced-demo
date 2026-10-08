@@ -6,6 +6,7 @@
 #include "VulkanProfiler.h"
 #include "VulkanRenderPipeline.h"
 #include "VulkanShaderModule.h"
+#include "VulkanStorageTexture2D.h"
 #include "VulkanSwapchain.h"
 #include "VulkanTexture2D.h"
 #include "VulkanUtils.h"
@@ -84,6 +85,16 @@ void VulkanImGuiOverlay::addPanel(std::unique_ptr<IImGuiPanel> panel) {
 }
 
 uint32_t VulkanImGuiOverlay::registerTexture(const VulkanTexture2D& texture) {
+    if (nextTextureId_ >= descriptors_->capacity(TexturesResource)) {
+        throw std::runtime_error("ImGui texture table is full.");
+    }
+    const uint32_t textureId = nextTextureId_;
+    descriptors_->writeTexture2D(TexturesResource, textureId, texture);
+    ++nextTextureId_;
+    return textureId;
+}
+
+uint32_t VulkanImGuiOverlay::registerTexture(const VulkanStorageTexture2D& texture) {
     if (nextTextureId_ >= descriptors_->capacity(TexturesResource)) {
         throw std::runtime_error("ImGui texture table is full.");
     }

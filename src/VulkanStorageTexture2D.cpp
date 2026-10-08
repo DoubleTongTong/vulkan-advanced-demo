@@ -11,7 +11,8 @@
 VulkanStorageTexture2D::VulkanStorageTexture2D(
     const VulkanContext& context,
     VkExtent2D extent,
-    const char* debugName)
+    const char* debugName,
+    VkSamplerAddressMode addressMode)
     : context_(context), extent_(extent) {
     if (extent_.width == 0 || extent_.height == 0) {
         throw std::invalid_argument("Storage texture extent must not be empty.");
@@ -64,9 +65,9 @@ VulkanStorageTexture2D::VulkanStorageTexture2D(
             .magFilter = VK_FILTER_LINEAR,
             .minFilter = VK_FILTER_LINEAR,
             .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
-            .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-            .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-            .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+            .addressModeU = addressMode,
+            .addressModeV = addressMode,
+            .addressModeW = addressMode,
             .maxLod = 0.0f,
         };
         vulkan_utils::checkVk(
