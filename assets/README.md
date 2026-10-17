@@ -28,3 +28,9 @@ https://casual-effects.com/data/
 ## Piazza Bologni HDR
 
 `piazza_bologni_1k.hdr` 用于 cube map 环境反射示例，同样通过 Git LFS 管理。
+
+## DamagedHelmet
+
+Unlit glTF 示例使用 Khronos 的 DamagedHelmet。CMake 配置时会逐个下载 glTF、
+二进制几何和 5 张纹理到 `assets/damaged_helmet/`，不会克隆完整的
+`glTF-Sample-Models` 仓库。该目录是本地构建资产，不提交到 Git。

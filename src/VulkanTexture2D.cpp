@@ -12,8 +12,9 @@
 VulkanTexture2D::VulkanTexture2D(
     const VulkanContext& context,
     const RgbaImage& image,
-    const char* debugName)
-    : context_(&context) {
+    const char* debugName,
+    VkFormat format)
+    : context_(&context), format_(format) {
     if (image.width == 0 || image.height == 0 || image.pixels.empty()) {
         throw std::runtime_error("Cannot create a Vulkan texture from an empty image.");
     }
@@ -52,6 +53,7 @@ VulkanTexture2D& VulkanTexture2D::operator=(VulkanTexture2D&& other) noexcept {
     sampler_ = other.sampler_;
     allocation_ = other.allocation_;
     extent_ = other.extent_;
+    format_ = other.format_;
     layout_ = other.layout_;
 
     other.context_ = nullptr;
@@ -85,7 +87,7 @@ void VulkanTexture2D::createImage(const RgbaImage& image, const char* debugName)
     const VkImageCreateInfo imageCreateInfo{
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         .imageType = VK_IMAGE_TYPE_2D,
-        .format = VK_FORMAT_R8G8B8A8_UNORM,
+        .format = format_,
         .extent = {
             .width = image.width,
             .height = image.height,
@@ -121,7 +123,7 @@ void VulkanTexture2D::createImageView(const char* debugName) {
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .image = image_,
         .viewType = VK_IMAGE_VIEW_TYPE_2D,
-        .format = VK_FORMAT_R8G8B8A8_UNORM,
+        .format = format_,
         .components = {
             .r = VK_COMPONENT_SWIZZLE_IDENTITY,
             .g = VK_COMPONENT_SWIZZLE_IDENTITY,

@@ -39,7 +39,7 @@ VulkanBuffer makeIndirectBuffer(const VulkanContext& context, const MeshData& me
             .storage = BufferStorage::Device,
             .size = sizeof(VkDrawIndexedIndirectCommand) * commands.size(),
             .data = commands.data(),
-            .debugName = "Bistro indexed indirect commands",
+            .debugName = "Mesh indexed indirect commands",
         });
 }
 
@@ -53,7 +53,7 @@ IndirectMesh::IndirectMesh(const VulkanContext& context, const MeshData& meshDat
               .storage = BufferStorage::Device,
               .size = meshData.vertexBytes().size(),
               .data = meshData.vertexBytes().data(),
-              .debugName = "Bistro shared vertex buffer",
+              .debugName = "Mesh shared vertex buffer",
           }),
       indexBuffer_(
           context,
@@ -62,7 +62,7 @@ IndirectMesh::IndirectMesh(const VulkanContext& context, const MeshData& meshDat
               .storage = BufferStorage::Device,
               .size = meshData.indexBytes().size(),
               .data = meshData.indexBytes().data(),
-              .debugName = "Bistro shared index buffer",
+              .debugName = "Mesh shared index buffer",
           }),
       indirectBuffer_(makeIndirectBuffer(context, meshData)),
       drawCount_(static_cast<uint32_t>(meshData.meshCount())) {

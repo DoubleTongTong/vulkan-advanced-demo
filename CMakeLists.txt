@@ -156,6 +156,46 @@ set(RUBBER_DUCK_SCENE "${CMAKE_SOURCE_DIR}/assets/rubber_duck/scene.gltf")
 set(RUBBER_DUCK_TEXTURE "${CMAKE_SOURCE_DIR}/assets/rubber_duck/textures/Duck_baseColor.png")
 set(PIAZZA_ENVIRONMENT "${CMAKE_SOURCE_DIR}/assets/piazza_bologni_1k.hdr")
 
+# DamagedHelmet 只需要 glTF 目录中的 7 个文件。逐文件下载可以避免为了一个
+# 约数 MB 的示例，把完整的 glTF-Sample-Models 仓库拉到本地。
+set(DAMAGED_HELMET_DIR "${CMAKE_SOURCE_DIR}/assets/damaged_helmet")
+set(DAMAGED_HELMET_SCENE "${DAMAGED_HELMET_DIR}/DamagedHelmet.gltf")
+set(DAMAGED_HELMET_BASE_URL
+    "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/DamagedHelmet/glTF"
+)
+set(DAMAGED_HELMET_FILES
+    DamagedHelmet.gltf
+    DamagedHelmet.bin
+    Default_albedo.jpg
+    Default_metalRoughness.jpg
+    Default_emissive.jpg
+    Default_AO.jpg
+    Default_normal.jpg
+)
+
+file(MAKE_DIRECTORY "${DAMAGED_HELMET_DIR}")
+foreach(asset_file IN LISTS DAMAGED_HELMET_FILES)
+    set(asset_path "${DAMAGED_HELMET_DIR}/${asset_file}")
+    if(NOT EXISTS "${asset_path}")
+        message(STATUS "Downloading DamagedHelmet asset: ${asset_file}")
+        file(DOWNLOAD
+            "${DAMAGED_HELMET_BASE_URL}/${asset_file}"
+            "${asset_path}"
+            STATUS download_status
+            TLS_VERIFY ON
+            INACTIVITY_TIMEOUT 30
+        )
+        list(GET download_status 0 download_error)
+        list(GET download_status 1 download_message)
+        if(NOT download_error EQUAL 0)
+            file(REMOVE "${asset_path}")
+            message(FATAL_ERROR
+                "Failed to download DamagedHelmet/${asset_file}: ${download_message}"
+            )
+        endif()
+    endif()
+endforeach()
+
 if(NOT EXISTS "${BC7_DEMO_INPUT_TEXTURE}")
     message(FATAL_ERROR
         "BC7 demo requires the Bistro texture dataset, but the sample texture was not found:\n"
@@ -306,11 +346,13 @@ add_executable(vulkan_advanced_demo
     src/mesh/GeometryCache.cpp
     src/mesh/ModelLoader.cpp
     src/mesh/MeshData.cpp
+    src/material/UnlitGltfMaterial.cpp
     src/rendering/canvas/LineCanvas3D.cpp
     src/rendering/ComputedMeshCommandRecorder.cpp
     src/rendering/ComputeTextureCommandRecorder.cpp
     src/rendering/InfiniteGridCommandRecorder.cpp
     src/rendering/IndirectBistroCommandRecorder.cpp
+    src/rendering/UnlitGltfCommandRecorder.cpp
     src/rendering/InstancedCubesCommandRecorder.cpp
     src/rendering/InstancedMeshesCommandRecorder.cpp
     src/rendering/ReflectiveDuckCommandRecorder.cpp
@@ -360,6 +402,7 @@ target_compile_definitions(vulkan_advanced_demo
         APP_INSTANCED_CUBES_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/instanced_cubes"
         APP_INSTANCED_MESHES_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/instanced_meshes"
         APP_COMPUTED_MESH_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/computed_mesh"
+        APP_UNLIT_GLTF_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/unlit_gltf"
         APP_COMPUTE_TEXTURE_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/compute_texture"
         APP_INFINITE_GRID_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/infinite_grid"
         APP_INDIRECT_BISTRO_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/indirect_bistro"
@@ -371,6 +414,7 @@ target_compile_definitions(vulkan_advanced_demo
         BISTRO_SCENE="${BISTRO_SCENE}"
         RUBBER_DUCK_TEXTURE="${RUBBER_DUCK_TEXTURE}"
         PIAZZA_ENVIRONMENT="${PIAZZA_ENVIRONMENT}"
+        DAMAGED_HELMET_SCENE="${DAMAGED_HELMET_SCENE}"
         APP_IMGUI_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/imgui"
         APP_ENABLE_TRACY=$<BOOL:${APP_ENABLE_TRACY}>
 )

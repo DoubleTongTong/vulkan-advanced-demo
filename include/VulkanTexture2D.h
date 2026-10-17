@@ -11,7 +11,11 @@ using VmaAllocation = VmaAllocation_T*;
 
 class VulkanTexture2D {
 public:
-    VulkanTexture2D(const VulkanContext& context, const RgbaImage& image, const char* debugName);
+    VulkanTexture2D(
+        const VulkanContext& context,
+        const RgbaImage& image,
+        const char* debugName,
+        VkFormat format = VK_FORMAT_R8G8B8A8_UNORM);
     ~VulkanTexture2D();
 
     VulkanTexture2D(const VulkanTexture2D&) = delete;
@@ -36,5 +40,6 @@ private:
     VkSampler sampler_ = VK_NULL_HANDLE;
     VmaAllocation allocation_ = nullptr;
     VkExtent2D extent_{};
+    VkFormat format_ = VK_FORMAT_R8G8B8A8_UNORM;
     VkImageLayout layout_ = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 };
