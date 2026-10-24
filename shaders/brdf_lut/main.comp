@@ -1,0 +1,146 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+// 每个 texel 是两个 uint：分别打包 RG、BA 两组 half float。
+// 因此 CPU 读回的 8 字节可以直接按 VK_FORMAT_R16G16B16A16_SFLOAT 写入 KTX2。
+layout(std430, set = 0, binding = 0) writeonly buffer BrdfLutOutput {
+    uvec2 texels[];
+} kBrdfLut;
+
+layout(constant_id = 0) const uint SampleCount = 256u;
+
+layout(push_constant) uniform BrdfLutParameters {
+    uvec2 size;
+} pc;
+
+const float Pi = 3.14159265358979323846;
+
+float radicalInverseVanDerCorput(uint bits) {
+    bits = (bits << 16u) | (bits >> 16u);
+    bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
+    bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
+    bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
+    bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
+    return float(bits) * 2.3283064365386963e-10;
+}
+
+// Hammersley 点集比纯随机采样分布更均匀，能用较少样本稳定积分结果。
+vec2 hammersley(uint index, uint count) {
+    return vec2(float(index) / float(count), radicalInverseVanDerCorput(index));
+}
+
+float random(vec2 seed) {
+    const float value = dot(seed, vec2(12.9898, 78.233));
+    return fract(sin(mod(value, 3.14)) * 43758.5453);
+}
+
+vec3 importanceSampleGgx(vec2 xi, vec3 normal, float roughness) {
+    const float alpha = roughness * roughness;
+    const float phi = 2.0 * Pi * xi.x + random(normal.xz) * 0.1;
+    const float cosTheta = sqrt((1.0 - xi.y) / (1.0 + (alpha * alpha - 1.0) * xi.y));
+    const float sinTheta = sqrt(max(1.0 - cosTheta * cosTheta, 0.0));
+
+    const vec3 halfVector = vec3(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
+    const vec3 up = abs(normal.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
+    const vec3 tangent = normalize(cross(up, normal));
+    const vec3 bitangent = cross(normal, tangent);
+    return normalize(tangent * halfVector.x + bitangent * halfVector.y + normal * halfVector.z);
+}
+
+float geometrySchlickGgx(float nDotDirection, float roughness) {
+    const float k = roughness * roughness * 0.5;
+    return nDotDirection / (nDotDirection * (1.0 - k) + k);
+}
+
+float geometrySmith(float nDotView, float nDotLight, float roughness) {
+    return geometrySchlickGgx(nDotView, roughness) *
+           geometrySchlickGgx(nDotLight, roughness);
+}
+
+float visibilityAshikhmin(float nDotLight, float nDotView) {
+    return clamp(
+        1.0 / (4.0 * (nDotLight + nDotView - nDotLight * nDotView)),
+        0.0,
+        1.0);
+}
+
+float distributionCharlie(float roughness, float nDotHalf) {
+    const float safeRoughness = max(roughness, 1e-6);
+    const float inverseRoughness = 1.0 / safeRoughness;
+    const float sinThetaSquared = 1.0 - nDotHalf * nDotHalf;
+    return (2.0 + inverseRoughness) *
+        pow(sinThetaSquared, inverseRoughness * 0.5) / (2.0 * Pi);
+}
+
+vec3 importanceSampleCharlie(vec2 xi, vec3 normal, float roughness) {
+    const float alpha = roughness * roughness;
+    const float phi = 2.0 * Pi * xi.x;
+    const float sinTheta = pow(xi.y, alpha / (2.0 * alpha + 1.0));
+    const float cosTheta = sqrt(max(1.0 - sinTheta * sinTheta, 0.0));
+    const vec3 halfVector = vec3(sinTheta * cos(phi), sinTheta * sin(phi), cosTheta);
+
+    const vec3 up = abs(normal.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
+    const vec3 tangent = normalize(cross(up, normal));
+    const vec3 bitangent = normalize(cross(normal, tangent));
+    return normalize(tangent * halfVector.x + bitangent * halfVector.y + normal * halfVector.z);
+}
+
+vec3 integrateBrdf(float nDotView, float roughness) {
+    const vec3 normal = vec3(0.0, 0.0, 1.0);
+    const vec3 view = vec3(sqrt(max(1.0 - nDotView * nDotView, 0.0)), 0.0, nDotView);
+    vec3 result = vec3(0.0);
+
+    for (uint i = 0u; i < SampleCount; ++i) {
+        const vec3 halfVector = importanceSampleGgx(hammersley(i, SampleCount), normal, roughness);
+        const vec3 light = normalize(2.0 * dot(view, halfVector) * halfVector - view);
+        const float nDotLight = max(light.z, 0.0);
+        const float nDotHalf = max(halfVector.z, 0.0);
+        const float viewDotHalf = max(dot(view, halfVector), 0.0);
+        if (nDotLight <= 0.0) {
+            continue;
+        }
+
+        const float geometry = geometrySmith(nDotView, nDotLight, roughness);
+        const float visibility = geometry * viewDotHalf /
+            max(nDotHalf * nDotView, 1e-6);
+        const float fresnelComplement = pow(1.0 - viewDotHalf, 5.0);
+        result.xy += vec2((1.0 - fresnelComplement) * visibility, fresnelComplement * visibility);
+    }
+
+
+    // B 通道不是普通颜色，而是 KHR_materials_sheen 使用的 Charlie BRDF 积分。
+    for (uint i = 0u; i < SampleCount; ++i) {
+        const vec3 halfVector = importanceSampleCharlie(
+            hammersley(i, SampleCount), normal, roughness);
+        const vec3 light = 2.0 * dot(view, halfVector) * halfVector - view;
+        const float nDotLight = max(dot(normal, light), 0.0);
+        if (nDotLight <= 0.0) {
+            continue;
+        }
+
+        const float nDotHalf = max(dot(halfVector, normal), 0.0);
+        const float viewDotHalf = max(dot(view, halfVector), 0.0);
+        const float sheenDistribution = distributionCharlie(roughness, nDotHalf);
+        const float sheenVisibility = visibilityAshikhmin(nDotLight, nDotView);
+        result.z += sheenVisibility * sheenDistribution * nDotLight * viewDotHalf;
+    }
+
+    return result / float(SampleCount);
+}
+
+void main() {
+    const uvec2 pixel = gl_GlobalInvocationID.xy;
+    if (any(greaterThanEqual(pixel, pc.size))) {
+        return;
+    }
+
+    // 采样 texel 中心，避免 NdotV 精确落到 0 导致积分奇异。
+    const vec2 uv = (vec2(pixel) + 0.5) / vec2(pc.size);
+    // 文件查看器通常从图像顶端向下显示，因此反转 Y，使粗糙度 0 位于底部。
+    const vec3 value = integrateBrdf(uv.x, 1.0 - uv.y);
+    const uint index = pixel.y * pc.size.x + pixel.x;
+    kBrdfLut.texels[index] = uvec2(
+        packHalf2x16(value.xy),
+        packHalf2x16(vec2(value.z, 1.0)));
+}

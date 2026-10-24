@@ -87,6 +87,23 @@ void VulkanBuffer::bufferSubData(size_t offset, size_t byteSize, const void* dat
     flushMappedMemory(offset, byteSize);
 }
 
+void VulkanBuffer::readSubData(size_t offset, size_t byteSize, void* destination) const {
+    if (!mappedPtr_) {
+        throw std::runtime_error("Cannot read directly from a non-mapped Vulkan buffer.");
+    }
+    if (!destination) {
+        throw std::invalid_argument("Vulkan buffer read destination cannot be null.");
+    }
+    if (offset + byteSize > size_) {
+        throw std::runtime_error("Vulkan buffer read is out of range.");
+    }
+
+    // 等待提交对应的 fence 后再调用。invalidate 让非 coherent 内存中的 GPU 写入
+    // 对 CPU 可见；coherent 内存上 VMA 会把它处理成空操作。
+    invalidateMappedMemory(offset, byteSize);
+    std::memcpy(destination, static_cast<const uint8_t*>(mappedPtr_) + offset, byteSize);
+}
+
 void VulkanBuffer::flushMappedMemory(VkDeviceSize offset, VkDeviceSize byteSize) const {
     if (!mappedPtr_) {
         return;
@@ -95,6 +112,16 @@ void VulkanBuffer::flushMappedMemory(VkDeviceSize offset, VkDeviceSize byteSize)
     vulkan_utils::checkVk(
         vmaFlushAllocation(context_->allocator(), allocation_, offset, byteSize),
         "vmaFlushAllocation");
+}
+
+void VulkanBuffer::invalidateMappedMemory(VkDeviceSize offset, VkDeviceSize byteSize) const {
+    if (!mappedPtr_) {
+        return;
+    }
+
+    vulkan_utils::checkVk(
+        vmaInvalidateAllocation(context_->allocator(), allocation_, offset, byteSize),
+        "vmaInvalidateAllocation");
 }
 
 void VulkanBuffer::create(const BufferDesc& desc) {
@@ -112,10 +139,11 @@ void VulkanBuffer::create(const BufferDesc& desc) {
         .usage = VMA_MEMORY_USAGE_AUTO,
     };
 
-    if (desc.storage == BufferStorage::HostVisible) {
-        allocationCreateInfo.flags =
-            VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
-            VMA_ALLOCATION_CREATE_MAPPED_BIT;
+    if (desc.storage == BufferStorage::HostVisible || desc.storage == BufferStorage::HostReadback) {
+        allocationCreateInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+        allocationCreateInfo.flags |= desc.storage == BufferStorage::HostReadback
+            ? VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT
+            : VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
         allocationCreateInfo.requiredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
     } else {
         allocationCreateInfo.preferredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;

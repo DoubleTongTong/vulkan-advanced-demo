@@ -22,6 +22,8 @@ enum BufferUsageBits : uint32_t {
 enum class BufferStorage {
     Device,
     HostVisible,
+    // GPU 写入、CPU 读取的持久映射内存，例如离线计算结果回读。
+    HostReadback,
 };
 
 struct BufferDesc {
@@ -51,7 +53,9 @@ public:
     bool isMapped() const;
 
     void bufferSubData(size_t offset, size_t byteSize, const void* data);
+    void readSubData(size_t offset, size_t byteSize, void* destination) const;
     void flushMappedMemory(VkDeviceSize offset, VkDeviceSize byteSize) const;
+    void invalidateMappedMemory(VkDeviceSize offset, VkDeviceSize byteSize) const;
 
 private:
     void create(const BufferDesc& desc);

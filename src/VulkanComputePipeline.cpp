@@ -41,6 +41,7 @@ VulkanComputePipeline::VulkanComputePipeline(
             .stage = VK_SHADER_STAGE_COMPUTE_BIT,
             .module = desc.shader->handle(),
             .pName = "main",
+            .pSpecializationInfo = desc.specializationInfo,
         };
         const VkComputePipelineCreateInfo pipelineInfo{
             .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,

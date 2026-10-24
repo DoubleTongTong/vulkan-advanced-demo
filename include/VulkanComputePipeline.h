@@ -11,6 +11,8 @@ class VulkanShaderModule;
 struct ComputePipelineDesc {
     const VulkanShaderModule* shader = nullptr;
     std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
+    // 指针只需在构造期间有效，vkCreateComputePipelines 会立即复制这些数据。
+    const VkSpecializationInfo* specializationInfo = nullptr;
     const char* debugName = "Compute pipeline";
 };
 

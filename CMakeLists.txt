@@ -348,6 +348,7 @@ add_executable(vulkan_advanced_demo
     src/mesh/MeshData.cpp
     src/material/UnlitGltfMaterial.cpp
     src/rendering/canvas/LineCanvas3D.cpp
+    src/rendering/BrdfLutCommandRecorder.cpp
     src/rendering/ComputedMeshCommandRecorder.cpp
     src/rendering/ComputeTextureCommandRecorder.cpp
     src/rendering/InfiniteGridCommandRecorder.cpp
@@ -404,6 +405,8 @@ target_compile_definitions(vulkan_advanced_demo
         APP_COMPUTED_MESH_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/computed_mesh"
         APP_UNLIT_GLTF_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/unlit_gltf"
         APP_COMPUTE_TEXTURE_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/compute_texture"
+        APP_BRDF_LUT_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/brdf_lut"
+        APP_BRDF_LUT_OUTPUT="${CMAKE_SOURCE_DIR}/.cache/brdf/brdf_lut.ktx2"
         APP_INFINITE_GRID_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/infinite_grid"
         APP_INDIRECT_BISTRO_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/indirect_bistro"
         APP_TESSELLATED_DUCK_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/tessellated_duck"
@@ -423,6 +426,7 @@ target_include_directories(vulkan_advanced_demo
     PRIVATE
         include
         ${vma_SOURCE_DIR}/include
+        ${ktx_SOURCE_DIR}/lib
 )
 
 target_compile_options(vulkan_advanced_demo
@@ -440,6 +444,7 @@ target_link_libraries(vulkan_advanced_demo
         imgui_glfw
         implot_library
         shader_compiler
+        ktx
         Vulkan::Vulkan
 )
 

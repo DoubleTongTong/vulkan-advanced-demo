@@ -9,6 +9,7 @@
 #include "VulkanShaderModule.h"
 #include "VulkanSwapchain.h"
 #include "VulkanUtils.h"
+#include "rendering/BrdfLutCommandRecorder.h"
 #include "rendering/UnlitGltfCommandRecorder.h"
 #include "rendering/IRenderCommandRecorder.h"
 #include "ui/FrameGraphPanel.h"
@@ -42,6 +43,28 @@ int main() {
 
         // ImmediateCommands 只负责命令缓冲的申请、提交和回收，不关心里面录制什么。
         VulkanImmediateCommands commands(vulkan, "Main immediate commands");
+
+        // BRDF LUT 是后续 PBR 使用的预计算资源，只需在启动阶段生成一次。
+        {
+            const VulkanShaderModule brdfLutShader = VulkanShaderModule::fromFile(
+                vulkan,
+                std::filesystem::path(APP_BRDF_LUT_SHADER_DIR) / "main.comp");
+            const BrdfLutCommandRecorder brdfLutRecorder(
+                vulkan,
+                brdfLutShader,
+                BrdfLutConfig{
+                    .width = 256,
+                    .height = 256,
+                    .sampleCount = 1024,
+                });
+
+            const VulkanImmediateCommands::CommandBuffer& commandBuffer = commands.acquire();
+            brdfLutRecorder.record(commandBuffer.commandBuffer);
+            commands.wait(commands.submit(commandBuffer));
+            brdfLutRecorder.saveKtx2(APP_BRDF_LUT_OUTPUT);
+            std::cout << "Generated BRDF LUT: " << APP_BRDF_LUT_OUTPUT << '\n';
+        }
+
         SceneCamera sceneCamera(
             window.handle(),
             FirstPersonCamera::Settings{
