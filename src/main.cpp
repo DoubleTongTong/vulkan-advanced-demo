@@ -1,5 +1,7 @@
 #include "FrameTimer.h"
 #include "GlfwWindow.h"
+#include "CubeMapProcessor.h"
+#include "ImageProcessor.h"
 #include "SceneCamera.h"
 #include "VulkanContext.h"
 #include "VulkanFrameSync.h"
@@ -9,7 +11,9 @@
 #include "VulkanShaderModule.h"
 #include "VulkanSwapchain.h"
 #include "VulkanUtils.h"
+#include "VulkanTextureCube.h"
 #include "rendering/BrdfLutCommandRecorder.h"
+#include "rendering/EnvironmentMapFilterCommandRecorder.h"
 #include "rendering/UnlitGltfCommandRecorder.h"
 #include "rendering/IRenderCommandRecorder.h"
 #include "ui/FrameGraphPanel.h"
@@ -63,6 +67,60 @@ int main() {
             commands.wait(commands.submit(commandBuffer));
             brdfLutRecorder.saveKtx2(APP_BRDF_LUT_OUTPUT);
             std::cout << "Generated BRDF LUT: " << APP_BRDF_LUT_OUTPUT << '\n';
+        }
+
+        // 把同一张 HDR 环境分别卷积成漫反射、GGX 镜面和 Charlie Sheen 资源。
+        {
+            const RgbaFloatImage panorama =
+                ImageProcessor().loadRgba32Float(PIAZZA_ENVIRONMENT);
+            const CubeMapImage cubeMap =
+                CubeMapProcessor().fromEquirectangular(panorama);
+            const VulkanTextureCube environment(
+                vulkan, cubeMap, "Piazza environment with mipmaps");
+            const VulkanShaderModule filterShader = VulkanShaderModule::fromFile(
+                vulkan,
+                std::filesystem::path(APP_ENVIRONMENT_FILTER_SHADER_DIR) / "main.comp");
+
+            const auto filterAndSave = [&vulkan, &commands, &environment, &filterShader](
+                EnvironmentMapFilterConfig config,
+                const std::filesystem::path& outputPath) {
+                const EnvironmentMapFilterCommandRecorder recorder(
+                    vulkan, filterShader, environment, config);
+                const VulkanImmediateCommands::CommandBuffer& commandBuffer = commands.acquire();
+                recorder.record(commandBuffer.commandBuffer);
+                commands.wait(commands.submit(commandBuffer));
+                recorder.saveKtx2(outputPath);
+                recorder.saveEquirectangularHdrMipChain(
+                    APP_FILTERED_ENVIRONMENT_HDR_DIR,
+                    outputPath.stem().string());
+                std::cout << "Generated filtered environment: " << outputPath << '\n';
+            };
+
+            constexpr uint32_t FilterSamples = 256;
+            filterAndSave(
+                {
+                    .distribution = EnvironmentMapDistribution::Lambertian,
+                    .faceSize = 64,
+                    .mipLevels = 1,
+                    .sampleCount = FilterSamples,
+                },
+                APP_IRRADIANCE_OUTPUT);
+            filterAndSave(
+                {
+                    .distribution = EnvironmentMapDistribution::Ggx,
+                    .faceSize = cubeMap.faceSize,
+                    .mipLevels = environment.mipLevels(),
+                    .sampleCount = FilterSamples,
+                },
+                APP_GGX_ENVIRONMENT_OUTPUT);
+            filterAndSave(
+                {
+                    .distribution = EnvironmentMapDistribution::Charlie,
+                    .faceSize = cubeMap.faceSize,
+                    .mipLevels = environment.mipLevels(),
+                    .sampleCount = FilterSamples,
+                },
+                APP_CHARLIE_ENVIRONMENT_OUTPUT);
         }
 
         SceneCamera sceneCamera(

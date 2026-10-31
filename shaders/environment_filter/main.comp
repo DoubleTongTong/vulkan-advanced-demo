@@ -1,0 +1,200 @@
+#version 450
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+layout(set = 0, binding = 0) uniform sampler kEnvironmentSampler;
+layout(set = 0, binding = 1) uniform textureCube kEnvironmentCube;
+
+layout(std430, set = 0, binding = 2) writeonly buffer FilteredOutput {
+    vec4 texels[];
+} kFilteredOutput;
+
+layout(push_constant) uniform FilterParameters {
+    uint face;
+    float roughness;
+    uint sampleCount;
+    uint targetFaceSize;
+    uint sourceFaceSize;
+    uint sourceMipLevels;
+    uint distribution;
+    uint outputTexelOffset;
+} pc;
+
+const uint Lambertian = 0u;
+const uint Ggx = 1u;
+const uint Charlie = 2u;
+const float Pi = 3.14159265358979323846;
+
+struct DistributionSample {
+    float pdf;
+    float cosTheta;
+    float sinTheta;
+    float phi;
+};
+
+float radicalInverseVanDerCorput(uint bits) {
+    bits = (bits << 16u) | (bits >> 16u);
+    bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
+    bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
+    bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
+    bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
+    return float(bits) * 2.3283064365386963e-10;
+}
+
+vec2 hammersley(uint index, uint count) {
+    return vec2(float(index) / float(count), radicalInverseVanDerCorput(index));
+}
+
+float distributionGgx(float nDotHalf, float roughness) {
+    const float alpha = roughness * roughness;
+    const float alphaSquared = alpha * alpha;
+    const float denominator =
+        nDotHalf * nDotHalf * (alphaSquared - 1.0) + 1.0;
+    return alphaSquared / max(Pi * denominator * denominator, 1e-7);
+}
+
+float distributionCharlie(float nDotHalf, float roughness) {
+    const float safeRoughness = max(roughness, 1e-6);
+    const float inverseRoughness = 1.0 / safeRoughness;
+    const float sinThetaSquared = max(1.0 - nDotHalf * nDotHalf, 0.0);
+    return (2.0 + inverseRoughness) *
+        pow(sinThetaSquared, inverseRoughness * 0.5) / (2.0 * Pi);
+}
+
+DistributionSample sampleLambertian(vec2 xi) {
+    DistributionSample distributionSample;
+    distributionSample.phi = 2.0 * Pi * xi.x;
+    distributionSample.cosTheta = sqrt(max(1.0 - xi.y, 0.0));
+    distributionSample.sinTheta = sqrt(max(xi.y, 0.0));
+    distributionSample.pdf = max(distributionSample.cosTheta / Pi, 1e-7);
+    return distributionSample;
+}
+
+DistributionSample sampleGgx(vec2 xi, float roughness) {
+    if (roughness <= 1e-6) {
+        return DistributionSample(1.0, 1.0, 0.0, 0.0);
+    }
+    const float alpha = roughness * roughness;
+    DistributionSample distributionSample;
+    distributionSample.phi = 2.0 * Pi * xi.x;
+    distributionSample.cosTheta = sqrt(
+        (1.0 - xi.y) /
+        max(1.0 + (alpha * alpha - 1.0) * xi.y, 1e-7));
+    distributionSample.sinTheta = sqrt(
+        max(1.0 - distributionSample.cosTheta * distributionSample.cosTheta, 0.0));
+    // 预过滤时 V=N，因此 p(L)=D(H)/4。
+    distributionSample.pdf = max(
+        distributionGgx(distributionSample.cosTheta, roughness) * 0.25, 1e-7);
+    return distributionSample;
+}
+
+DistributionSample sampleCharlie(vec2 xi, float roughness) {
+    if (roughness <= 1e-6) {
+        return DistributionSample(1.0, 1.0, 0.0, 0.0);
+    }
+    const float alpha = roughness * roughness;
+    DistributionSample distributionSample;
+    distributionSample.phi = 2.0 * Pi * xi.x;
+    distributionSample.sinTheta = pow(xi.y, alpha / (2.0 * alpha + 1.0));
+    distributionSample.cosTheta = sqrt(
+        max(1.0 - distributionSample.sinTheta * distributionSample.sinTheta, 0.0));
+    distributionSample.pdf = max(
+        distributionCharlie(distributionSample.cosTheta, roughness) * 0.25, 1e-7);
+    return distributionSample;
+}
+
+mat3 tangentFrame(vec3 normal) {
+    const vec3 up = abs(normal.z) < 0.999
+        ? vec3(0.0, 0.0, 1.0)
+        : vec3(1.0, 0.0, 0.0);
+    const vec3 tangent = normalize(cross(up, normal));
+    const vec3 bitangent = cross(normal, tangent);
+    return mat3(tangent, bitangent, normal);
+}
+
+vec4 importanceSample(uint index, vec3 normal) {
+    const vec2 xi = hammersley(index, pc.sampleCount);
+    DistributionSample distributionSample;
+    if (pc.distribution == Lambertian) {
+        distributionSample = sampleLambertian(xi);
+    } else if (pc.distribution == Ggx) {
+        distributionSample = sampleGgx(xi, pc.roughness);
+    } else {
+        distributionSample = sampleCharlie(xi, pc.roughness);
+    }
+
+    const vec3 localDirection = vec3(
+        distributionSample.sinTheta * cos(distributionSample.phi),
+        distributionSample.sinTheta * sin(distributionSample.phi),
+        distributionSample.cosTheta);
+    return vec4(
+        normalize(tangentFrame(normal) * localDirection),
+        distributionSample.pdf);
+}
+
+float sourceLod(float pdf) {
+    const float width = float(pc.sourceFaceSize);
+    const float lod = 0.5 * log2(
+        6.0 * width * width /
+        (float(pc.sampleCount) * max(pdf, 1e-7)));
+    return clamp(lod, 0.0, float(pc.sourceMipLevels - 1u));
+}
+
+vec3 filterColor(vec3 normal) {
+    vec3 color = vec3(0.0);
+    float weight = 0.0;
+
+    for (uint i = 0u; i < pc.sampleCount; ++i) {
+        const vec4 importance = importanceSample(i, normal);
+        float lod = sourceLod(importance.w);
+
+        if (pc.distribution == Lambertian) {
+            color += textureLod(
+                samplerCube(kEnvironmentCube, kEnvironmentSampler),
+                importance.xyz,
+                lod).rgb;
+            weight += 1.0;
+            continue;
+        }
+
+        const vec3 view = normal;
+        const vec3 light = normalize(reflect(-view, importance.xyz));
+        const float nDotLight = dot(normal, light);
+        if (nDotLight > 0.0) {
+            if (pc.roughness == 0.0) {
+                lod = 0.0;
+            }
+            color += textureLod(
+                samplerCube(kEnvironmentCube, kEnvironmentSampler),
+                light,
+                lod).rgb * nDotLight;
+            weight += nDotLight;
+        }
+    }
+
+    return color / max(weight, 1e-7);
+}
+
+// 与项目现有 CubeMapProcessor 使用相同的面顺序和像素朝向。
+vec3 faceDirection(uint face, vec2 uv) {
+    if (face == 0u) return vec3( 1.0, -uv.y, -uv.x); // +X
+    if (face == 1u) return vec3(-1.0, -uv.y,  uv.x); // -X
+    if (face == 2u) return vec3( uv.x, 1.0,  uv.y);  // +Y
+    if (face == 3u) return vec3( uv.x, -1.0, -uv.y); // -Y
+    if (face == 4u) return vec3( uv.x, -uv.y, 1.0);  // +Z
+    return vec3(-uv.x, -uv.y, -1.0);                 // -Z
+}
+
+void main() {
+    const uvec2 pixel = gl_GlobalInvocationID.xy;
+    if (any(greaterThanEqual(pixel, uvec2(pc.targetFaceSize)))) {
+        return;
+    }
+
+    const vec2 uv =
+        2.0 * (vec2(pixel) + 0.5) / float(pc.targetFaceSize) - 1.0;
+    const vec3 normal = normalize(faceDirection(pc.face, uv));
+    const uint localIndex = pixel.y * pc.targetFaceSize + pixel.x;
+    kFilteredOutput.texels[pc.outputTexelOffset + localIndex] =
+        vec4(filterColor(normal), 1.0);
+}

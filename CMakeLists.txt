@@ -349,6 +349,7 @@ add_executable(vulkan_advanced_demo
     src/material/UnlitGltfMaterial.cpp
     src/rendering/canvas/LineCanvas3D.cpp
     src/rendering/BrdfLutCommandRecorder.cpp
+    src/rendering/EnvironmentMapFilterCommandRecorder.cpp
     src/rendering/ComputedMeshCommandRecorder.cpp
     src/rendering/ComputeTextureCommandRecorder.cpp
     src/rendering/InfiniteGridCommandRecorder.cpp
@@ -407,6 +408,11 @@ target_compile_definitions(vulkan_advanced_demo
         APP_COMPUTE_TEXTURE_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/compute_texture"
         APP_BRDF_LUT_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/brdf_lut"
         APP_BRDF_LUT_OUTPUT="${CMAKE_SOURCE_DIR}/.cache/brdf/brdf_lut.ktx2"
+        APP_ENVIRONMENT_FILTER_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/environment_filter"
+        APP_IRRADIANCE_OUTPUT="${CMAKE_SOURCE_DIR}/.cache/ibl/piazza_irradiance.ktx2"
+        APP_GGX_ENVIRONMENT_OUTPUT="${CMAKE_SOURCE_DIR}/.cache/ibl/piazza_ggx.ktx2"
+        APP_CHARLIE_ENVIRONMENT_OUTPUT="${CMAKE_SOURCE_DIR}/.cache/ibl/piazza_charlie.ktx2"
+        APP_FILTERED_ENVIRONMENT_HDR_DIR="${CMAKE_SOURCE_DIR}/.cache/ibl/hdr"
         APP_INFINITE_GRID_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/infinite_grid"
         APP_INDIRECT_BISTRO_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/indirect_bistro"
         APP_TESSELLATED_DUCK_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/tessellated_duck"

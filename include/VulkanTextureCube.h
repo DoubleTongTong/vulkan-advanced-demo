@@ -21,9 +21,12 @@ public:
     VkImageView imageView() const;
     VkSampler sampler() const;
     VkImageLayout layout() const;
+    uint32_t faceSize() const;
+    uint32_t mipLevels() const;
 
 private:
     void createImage(uint32_t faceSize, const char* debugName);
+    void generateMipmaps();
     void createImageView(const char* debugName);
     void createSampler(const char* debugName);
     void destroy();
@@ -34,4 +37,6 @@ private:
     VkSampler sampler_ = VK_NULL_HANDLE;
     VmaAllocation allocation_ = nullptr;
     VkImageLayout layout_ = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    uint32_t faceSize_ = 0;
+    uint32_t mipLevels_ = 1;
 };

@@ -18,6 +18,8 @@ void transitionImage(
     VkPipelineStageFlags srcStage,
     VkPipelineStageFlags dstStage,
     uint32_t baseArrayLayer = 0,
-    uint32_t layerCount = 1);
+    uint32_t layerCount = 1,
+    uint32_t baseMipLevel = 0,
+    uint32_t levelCount = 1);
 
 } // namespace vulkan_utils

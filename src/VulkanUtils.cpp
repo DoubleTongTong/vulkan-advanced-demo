@@ -22,11 +22,13 @@ void transitionImage(
     VkPipelineStageFlags srcStage,
     VkPipelineStageFlags dstStage,
     uint32_t baseArrayLayer,
-    uint32_t layerCount) {
+    uint32_t layerCount,
+    uint32_t baseMipLevel,
+    uint32_t levelCount) {
     const VkImageSubresourceRange subresourceRange{
         .aspectMask = aspectMask,
-        .baseMipLevel = 0,
-        .levelCount = 1,
+        .baseMipLevel = baseMipLevel,
+        .levelCount = levelCount,
         .baseArrayLayer = baseArrayLayer,
         .layerCount = layerCount,
     };
