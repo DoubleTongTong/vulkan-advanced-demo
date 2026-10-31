@@ -346,10 +346,12 @@ add_executable(vulkan_advanced_demo
     src/mesh/GeometryCache.cpp
     src/mesh/ModelLoader.cpp
     src/mesh/MeshData.cpp
+    src/material/MetallicRoughnessGltfMaterial.cpp
     src/material/UnlitGltfMaterial.cpp
     src/rendering/canvas/LineCanvas3D.cpp
     src/rendering/BrdfLutCommandRecorder.cpp
     src/rendering/EnvironmentMapFilterCommandRecorder.cpp
+    src/rendering/MetallicRoughnessGltfCommandRecorder.cpp
     src/rendering/ComputedMeshCommandRecorder.cpp
     src/rendering/ComputeTextureCommandRecorder.cpp
     src/rendering/InfiniteGridCommandRecorder.cpp
@@ -381,6 +383,7 @@ add_executable(vulkan_advanced_demo
     src/VulkanFrameSync.cpp
     src/VulkanImmediateCommands.cpp
     src/VulkanImGuiOverlay.cpp
+    src/VulkanKtxTexture.cpp
     src/VulkanProfiler.cpp
     src/VulkanRenderPipeline.cpp
     src/VulkanShaderModule.cpp
@@ -405,6 +408,7 @@ target_compile_definitions(vulkan_advanced_demo
         APP_INSTANCED_MESHES_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/instanced_meshes"
         APP_COMPUTED_MESH_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/computed_mesh"
         APP_UNLIT_GLTF_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/unlit_gltf"
+        APP_METALLIC_ROUGHNESS_GLTF_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/metallic_roughness_gltf"
         APP_COMPUTE_TEXTURE_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/compute_texture"
         APP_BRDF_LUT_SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders/brdf_lut"
         APP_BRDF_LUT_OUTPUT="${CMAKE_SOURCE_DIR}/.cache/brdf/brdf_lut.ktx2"

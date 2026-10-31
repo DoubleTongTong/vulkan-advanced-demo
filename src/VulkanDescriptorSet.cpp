@@ -3,6 +3,7 @@
 #include "VulkanBuffer.h"
 #include "VulkanContext.h"
 #include "VulkanShaderModule.h"
+#include "VulkanKtxTexture.h"
 #include "VulkanStorageTexture2D.h"
 #include "VulkanTexture2D.h"
 #include "VulkanTextureCube.h"
@@ -182,6 +183,28 @@ void VulkanDescriptorSet::writeTextureCube(
     std::string_view name,
     uint32_t index,
     const VulkanTextureCube& texture) {
+    writeSampledImage(
+        name, index, texture.imageView(), texture.layout(), ShaderImageDimension::Cube);
+}
+
+void VulkanDescriptorSet::writeKtxTexture2D(
+    std::string_view name,
+    uint32_t index,
+    const VulkanKtxTexture& texture) {
+    if (texture.isCube()) {
+        throw std::invalid_argument("A cubemap KTX2 cannot be bound as a 2D texture.");
+    }
+    writeSampledImage(
+        name, index, texture.imageView(), texture.layout(), ShaderImageDimension::Image2D);
+}
+
+void VulkanDescriptorSet::writeKtxTextureCube(
+    std::string_view name,
+    uint32_t index,
+    const VulkanKtxTexture& texture) {
+    if (!texture.isCube()) {
+        throw std::invalid_argument("A 2D KTX2 cannot be bound as a cubemap texture.");
+    }
     writeSampledImage(
         name, index, texture.imageView(), texture.layout(), ShaderImageDimension::Cube);
 }

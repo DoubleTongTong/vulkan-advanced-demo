@@ -12,6 +12,7 @@
 class VulkanBuffer;
 class VulkanContext;
 class VulkanShaderModule;
+class VulkanKtxTexture;
 class VulkanTexture2D;
 class VulkanTextureCube;
 class VulkanStorageTexture2D;
@@ -62,6 +63,8 @@ public:
         uint32_t index,
         const VulkanStorageTexture2D& texture);
     void writeTextureCube(std::string_view name, uint32_t index, const VulkanTextureCube& texture);
+    void writeKtxTexture2D(std::string_view name, uint32_t index, const VulkanKtxTexture& texture);
+    void writeKtxTextureCube(std::string_view name, uint32_t index, const VulkanKtxTexture& texture);
 
     void bind(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout) const;
     void bindCompute(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout) const;
